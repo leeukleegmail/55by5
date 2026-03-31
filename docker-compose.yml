@@ -1,0 +1,25 @@
+services:
+  web:
+    build: .
+    container_name: darts-55by5
+    ports:
+      - "5000:5000"
+    volumes:
+      - darts_data:/app/darts.db
+    environment:
+      APP_SECRET_KEY: "${APP_SECRET_KEY:-change-me-before-going-live}"
+      APP_ADMIN_USERNAME: "${APP_ADMIN_USERNAME:-admin}"
+      APP_ADMIN_PASSWORD: "${APP_ADMIN_PASSWORD:-admin}"
+    restart: unless-stopped
+
+  test:
+    build: .
+    profiles: ["test"]
+    command: python -m pytest -q
+    environment:
+      APP_SECRET_KEY: "test-secret-only"
+    volumes:
+      - .:/app
+
+volumes:
+  darts_data:

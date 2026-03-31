@@ -1,0 +1,333 @@
+# 55 by 5 Darts (Flask)
+
+Local single-user Flask app for a 55-by-5 darts game with:
+
+- Persistent player roster
+- Drag-and-drop turn order before game start
+- Live turn entry and scoreboard
+- Persisted completed-game history
+
+This project is designed for local play on one machine (session-based login, no multiplayer networking).
+
+## Table of contents
+
+- [Overview](#overview)
+- [Requirements](#requirements)
+- [Quick start](#quick-start)
+- [Run with Docker Compose](#run-with-docker-compose)
+- [Run the app](#run-the-app)
+- [Authentication](#authentication)
+- [How to play in the UI](#how-to-play-in-the-ui)
+- [Scoring rules](#scoring-rules)
+- [Project layout](#project-layout)
+- [API endpoints](#api-endpoints)
+- [Run tests](#run-tests)
+- [Data persistence](#data-persistence)
+- [Troubleshooting](#troubleshooting)
+
+## Overview
+
+The app supports any number of players in the roster. For each new game, you select who is playing and drag players into the desired turn order.
+
+Each turn is entered as one total score value. A turn only counts if the total score is divisible by 5. Counted turn score is tracked as "fives" where:
+
+$$
+	ext{fives awarded} = \frac{\text{turn total}}{5}
+$$
+
+The winner is the first player to reach exactly 55 on a counted turn.
+
+## Requirements
+
+- macOS, Linux, or Windows
+- Python 3.9+
+- pip
+
+Optional but recommended:
+
+- Virtual environment (`venv`)
+
+## Quick start
+
+From the project root:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python app.py
+```
+
+Then open:
+
+http://127.0.0.1:5000
+
+## Run with Docker Compose
+
+From the project root:
+
+```bash
+docker compose up --build
+```
+
+Then open:
+
+http://127.0.0.1:5000
+
+Log in with the default admin credentials (`admin` / `admin`) and change the password via the User Administration panel.
+
+### Configuration via environment variables
+
+The easiest way to override defaults is to create a `.env` file in the project root **before** running Compose (it is git-ignored and never committed):
+
+```dotenv
+APP_SECRET_KEY=replace-with-a-long-random-string
+APP_ADMIN_USERNAME=myadmin
+APP_ADMIN_PASSWORD=my-strong-password
+```
+
+Docker Compose picks up `.env` automatically. The three variables are:
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `APP_SECRET_KEY` | `change-me-before-going-live` | Flask session signing key — **must be changed** for any non-local deployment |
+| `APP_ADMIN_USERNAME` | `admin` | Bootstrap admin username (used only when no admin account exists yet) |
+| `APP_ADMIN_PASSWORD` | `admin` | Bootstrap admin password |
+
+You can also pass them inline:
+
+```bash
+APP_SECRET_KEY=abc123 APP_ADMIN_PASSWORD=hunter2 docker compose up --build
+```
+
+Notes:
+
+- The SQLite database is persisted in a named Docker volume.
+- Stop the app with `Ctrl+C`.
+- Start detached with `docker compose up -d`.
+- Stop and remove containers with `docker compose down`.
+- Reset DB data (including all users) by removing the volume: `docker compose down -v`.
+
+## Run the app
+
+1. Create and activate a virtual environment.
+2. Install dependencies.
+3. Start Flask via `python app.py`.
+4. Keep the terminal open while playing.
+
+To stop the app, press `Ctrl+C` in the terminal.
+
+## Authentication
+
+The app requires login before accessing the game UI.
+
+### Default admin account
+
+On first start (or whenever no admin account exists in the database) a bootstrap admin user is created automatically:
+
+| | Default | Override env var |
+|---|---|---|
+| Username | `admin` | `APP_ADMIN_USERNAME` |
+| Password | `admin` | `APP_ADMIN_PASSWORD` |
+
+Change the default password immediately after first login by creating a new admin account and deleting the default one, or by restarting the app with `APP_ADMIN_PASSWORD` set to a strong value (bootstrap only runs when **no admin exists**).
+
+### Secret key
+
+Flask signs session cookies with `APP_SECRET_KEY`. The built-in default is intentionally weak. For any deployment beyond a single local machine, set a long random value:
+
+```bash
+# generate a suitable key
+python -c "import secrets; print(secrets.token_hex(32))"
+```
+
+Set it in `.env` (see [Run with Docker Compose](#run-with-docker-compose)) or export it in your shell before running `python app.py`.
+
+### Creating additional users
+
+After logging in as admin, the **User Administration** panel is visible in the top-right corner of the game screen. Enter a username and password there to create additional non-admin (or admin) accounts.
+
+## How to play in the UI
+
+1. Add players in the Players panel.
+2. In New Game Setup:
+3. Check the players who will play.
+4. Drag players in Turn Order to set the sequence.
+5. Click Start Game.
+6. In Live Game:
+7. Enter the turn total for the active player.
+8. You can use quick buttons for common totals.
+9. Click Submit Turn.
+10. Continue until someone reaches exactly 55 on a counted turn.
+11. Review completed games in Recent Games.
+
+Notes:
+
+- Only one active game is allowed at a time.
+- Player deletion is blocked if that player is in the active game.
+
+## Scoring rules
+
+- Any number of players can be created and stored persistently.
+- Players are selected per game and ordered via drag-and-drop.
+- Each turn is entered as one total points value.
+- Turn total must be divisible by 5 to count.
+- Fives gained from a turn = total points / 5.
+- All dartboard scores are allowed (singles/doubles/triples, bulls, and misses).
+- Winner is first player to reach exactly 55 on a counted turn.
+- If a counted turn would push a player above 55, it is a bust and does not count.
+- Completed games are saved in history.
+
+Examples:
+
+- Turn total: `20` -> counted -> `4` fives.
+- Turn total: `3` -> not divisible by `5` -> `0` fives.
+- Turn total: `75` -> counted -> `15` fives.
+
+Accepted total range per turn:
+
+- `0` to `180`
+
+## Project layout
+
+```text
+55by5/
+	app.py
+	requirements.txt
+	README.md
+	templates/
+		index.html
+	static/
+		css/
+			style.css
+		js/
+			script.js
+	tests/
+		test_app.py
+	darts.db               # auto-created on first run
+```
+
+## API endpoints
+
+Main routes exposed by the Flask app:
+
+- `GET /` -> main UI (requires login)
+- `GET/POST /login` -> login page and login submit
+- `POST /logout` -> logout current session
+- `GET /api/auth/me` -> current authenticated user
+- `POST /api/auth/users` -> create app user (admin only)
+- `GET /api/meta` -> config metadata (valid turn total range, targets, winning fives)
+- `GET /api/players` -> list players
+- `POST /api/players` -> create player
+- `PUT /api/players/<player_id>` -> rename player
+- `DELETE /api/players/<player_id>` -> delete player (if not in active game)
+- `GET /api/games/active` -> active game state
+- `POST /api/games` -> create game from ordered player ids
+- `POST /api/games/<game_id>/turn` -> submit one turn total value
+- `DELETE /api/games/<game_id>/turn` -> undo the most recent turn
+- `GET /api/games/<game_id>/state` -> full game state
+- `GET /api/games/history` -> list finished games
+- `GET /api/games/<game_id>/history` -> details of a finished/current game
+
+## Run tests
+
+With virtual environment active:
+
+```bash
+python -m pytest -q
+```
+
+Run Selenium GUI tests (requires Chrome or Firefox installed):
+
+```bash
+python -m pytest tests/test_gui_selenium.py -q
+```
+
+Notes for GUI tests:
+
+- Tests run headless.
+- Selenium will try Chrome first, then Firefox.
+- If no compatible browser/WebDriver is available, the GUI tests are skipped.
+
+With Docker Compose (containerized test run):
+
+```bash
+docker compose --profile test run --rm test
+```
+
+Optional: run tests as a Compose one-off without the profile flag:
+
+```bash
+docker compose run --rm test
+```
+
+The current test suite verifies:
+
+- Counted vs non-counted turns
+- Fives calculation
+- Win condition at exact 55
+- Bust behavior when a turn would exceed 55
+- Game history persistence
+
+## Data persistence
+
+- Database file: `darts.db` in project root
+- Player roster persists across restarts
+- Completed game history persists across restarts
+- App user accounts persist across restarts
+
+To reset all local data (including user accounts):
+
+1. Stop the app.
+2. Delete `darts.db`.
+3. Restart the app (the bootstrap admin account is re-created automatically).
+
+When running with Docker Compose, remove the named volume instead:
+
+```bash
+docker compose down -v
+```
+
+## Troubleshooting
+
+### `ModuleNotFoundError` or missing Flask packages
+
+Make sure your virtual environment is active and dependencies are installed:
+
+```bash
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+### `urllib3` / OpenSSL warning on macOS
+
+If you see a warning similar to:
+
+`urllib3 v2 only supports OpenSSL 1.1.1+ ... LibreSSL`
+
+- This project pins `urllib3<2` in `requirements.txt` to avoid the warning on older system Python builds.
+- Long-term fix: recreate your virtual environment with a modern Python linked against OpenSSL (for example Python 3.11+ from Homebrew), then reinstall requirements.
+
+### Port already in use
+
+If port 5000 is busy, run with a different port:
+
+```bash
+python -m flask --app app run --port 5001
+```
+
+Then open http://127.0.0.1:5001
+
+### Drag and drop not updating order
+
+- Ensure players are selected first.
+- Drag from one order row onto another row.
+- If needed, refresh the page and reselect players.
+
+### Cannot start a new game
+
+The app permits only one active game at a time. Finish the active game first.
+
+## License
+
+This repository currently has no license file. Add one if you plan to distribute it.

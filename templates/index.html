@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>55 by 5 Darts</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="hero">
+        <h1>55 by 5</h1>
+        <p>Enter each turn as one total score. Turn total must be divisible by 5. First to reach exactly 55 wins.</p>
+        <div class="user-bar">
+          <span id="current-user"></span>
+          <form action="/logout" method="post" class="logout-form">
+            <button type="submit">Log out</button>
+          </form>
+        </div>
+      </header>
+
+      <section class="panel hidden" id="admin-panel">
+        <div class="panel-header">
+          <h2>User Administration</h2>
+          <button type="button" id="hide-admin-panel" class="btn-ghost" title="Hide until next login">Hide</button>
+        </div>
+        <p class="hint">Admins can create application users.</p>
+        <form id="create-user-form" class="admin-form">
+          <input id="new-username" type="text" maxlength="80" placeholder="Username" required />
+          <input id="new-password" type="password" minlength="8" placeholder="Password (min 8 chars)" required />
+          <label class="chip">
+            <input id="new-is-admin" type="checkbox" />
+            <span>Admin</span>
+          </label>
+          <button type="submit">Create User</button>
+        </form>
+      </section>
+
+      <section class="panel" id="players-panel">
+        <h2>All Players</h2>
+        <form id="player-form" class="inline-form">
+          <input id="player-name" type="text" maxlength="80" placeholder="Add player" required />
+          <button type="submit">Add</button>
+        </form>
+        <ul id="players-list" class="list"></ul>
+      </section>
+
+      <section class="panel" id="setup-panel">
+        <h2>Select Players</h2>
+        <p class="hint">Select players and drag to set turn order.</p>
+        <div id="selectable-players" class="chips"></div>
+        <div>
+          <h3>Selected Players</h3>
+          <ul id="order-list" class="list order-list"></ul>
+        </div>
+        <button id="start-game">Start Game</button>
+      </section>
+
+      <section class="panel hidden" id="live-panel">
+        <h2>Live Game</h2>
+        <div id="active-game-meta"></div>
+
+        <div id="turn-input" class="turn-input hidden">
+          <h3>Total scored</h3>
+          <div class="darts-row">
+            <input id="turn-total" type="number" min="0" max="180" value="0" />
+          </div>
+          <div class="quick-board" id="quick-board"></div>
+          <div class="turn-actions">
+            <div class="turn-actions-left">
+              <button id="submit-turn">Submit Score</button>
+              <button id="no-score" type="button">No Score</button>
+            </div>
+            <button id="undo-turn" type="button">Undo</button>
+            <button id="quit-game" type="button">Quit Game</button>
+          </div>
+        </div>
+
+        <h3>Scoreboard</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Player</th>
+              <th>Score</th>
+              <th>Points Required</th>
+            </tr>
+          </thead>
+          <tbody id="scoreboard"></tbody>
+        </table>
+
+        <h3>Turns</h3>
+        <ul id="turns-list" class="list compact"></ul>
+      </section>
+
+      <section class="panel" id="history-panel">
+        <h2>Recent Games</h2>
+        <ul id="history-list" class="list"></ul>
+      </section>
+
+      <p id="message" class="message"></p>
+    </main>
+
+    <div id="bust-banner" class="bust-banner" role="status" aria-live="polite"></div>
+    <div id="score-warning-banner" class="score-warning-banner" role="status" aria-live="polite"></div>
+
+    <div id="winner-overlay" class="winner-overlay">
+      <canvas id="fireworks-canvas"></canvas>
+      <div class="winner-overlay__content">
+        <p class="winner-label">Winner!</p>
+        <p id="winner-name" class="winner-name"></p>
+        <button id="winner-continue" type="button">Continue</button>
+      </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+  </body>
+</html>
