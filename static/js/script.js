@@ -25,6 +25,7 @@ const bustBannerEl = document.getElementById("bust-banner");
 const scoreWarningBannerEl = document.getElementById("score-warning-banner");
 const currentUserEl = document.getElementById("current-user");
 const adminPanelEl = document.getElementById("admin-panel");
+const clearHistoryEl = document.getElementById("clear-history");
 
 let bustBannerTimeoutId = null;
 let scoreWarningTimeoutId = null;
@@ -361,6 +362,13 @@ async function loadAuthUser() {
       adminPanelEl.classList.add("hidden");
     });
   }
+  if (clearHistoryEl) {
+    if (user.is_admin) {
+      clearHistoryEl.classList.remove("hidden");
+    } else {
+      clearHistoryEl.classList.add("hidden");
+    }
+  }
 }
 
 async function init() {
@@ -448,6 +456,20 @@ async function init() {
         });
         createUserForm.reset();
         showMessage("User created.");
+      } catch (err) {
+        showMessage(err.message, true);
+      }
+    });
+  }
+
+  if (clearHistoryEl) {
+    clearHistoryEl.addEventListener("click", async () => {
+      const confirmed = window.confirm("Delete all recent finished game history?");
+      if (!confirmed) return;
+      try {
+        const result = await api("/api/games/history", { method: "DELETE" });
+        await loadHistory();
+        showMessage(`Deleted ${result.deleted_games} game(s) from history.`);
       } catch (err) {
         showMessage(err.message, true);
       }

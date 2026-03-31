@@ -564,6 +564,27 @@ def games_history():
     return jsonify(result)
 
 
+@app.delete("/api/games/history")
+def delete_games_history():
+    user = current_user_or_testing_admin()
+    if not user:
+        return jsonify({"error": "Authentication required."}), 401
+    if not user.is_admin:
+        return jsonify({"error": "Admin privileges required."}), 403
+
+    game_ids = [row.id for row in Game.query.filter_by(status="finished").all()]
+    if not game_ids:
+        return jsonify({"deleted_games": 0})
+
+    Turn.query.filter(Turn.game_id.in_(game_ids)).delete(synchronize_session=False)
+    GameScore.query.filter(GameScore.game_id.in_(game_ids)).delete(synchronize_session=False)
+    GamePlayerOrder.query.filter(GamePlayerOrder.game_id.in_(game_ids)).delete(synchronize_session=False)
+    Game.query.filter(Game.id.in_(game_ids)).delete(synchronize_session=False)
+    db.session.commit()
+
+    return jsonify({"deleted_games": len(game_ids)})
+
+
 @app.get("/api/games/<int:game_id>/state")
 def game_state(game_id: int):
     game = db.session.get(Game, game_id)

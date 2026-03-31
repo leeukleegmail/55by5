@@ -147,6 +147,8 @@ Set it in `.env` (see [Run with Docker Compose](#run-with-docker-compose)) or ex
 
 After logging in as admin, the **User Administration** panel is visible in the top-right corner of the game screen. Enter a username and password there to create additional non-admin (or admin) accounts.
 
+Admins can also clear finished game history from the **Recent Games** panel.
+
 ## How to play in the UI
 
 1. Add players in the Players panel.
@@ -227,6 +229,7 @@ Main routes exposed by the Flask app:
 - `DELETE /api/games/<game_id>/turn` -> undo the most recent turn
 - `GET /api/games/<game_id>/state` -> full game state
 - `GET /api/games/history` -> list finished games
+- `DELETE /api/games/history` -> delete all finished game history (admin only)
 - `GET /api/games/<game_id>/history` -> details of a finished/current game
 
 ## Run tests

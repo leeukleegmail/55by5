@@ -150,3 +150,24 @@ def test_quit_active_game(client):
     # Starting another game should now be allowed.
     next_game = client.post("/api/games", json={"ordered_player_ids": [p1]})
     assert next_game.status_code == 201
+
+
+def test_admin_can_delete_history(client):
+    p1 = add_player(client, "Hist1")
+    game = client.post("/api/games", json={"ordered_player_ids": [p1]}).get_json()["game"]
+
+    # 11 turns of 25 (5 fives each) = 55 fives exactly -> game finishes
+    for _ in range(11):
+        client.post(f"/api/games/{game['id']}/turn", json={"player_id": p1, "total_points": 25})
+
+    before = client.get("/api/games/history?limit=10")
+    assert before.status_code == 200
+    assert len(before.get_json()) == 1
+
+    deleted = client.delete("/api/games/history")
+    assert deleted.status_code == 200
+    assert deleted.get_json()["deleted_games"] == 1
+
+    after = client.get("/api/games/history?limit=10")
+    assert after.status_code == 200
+    assert after.get_json() == []
