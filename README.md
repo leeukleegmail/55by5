@@ -72,7 +72,7 @@ docker compose up --build
 
 Then open:
 
-http://127.0.0.1:5000
+http://127.0.0.1:5002
 
 Log in with the default admin credentials (`admin` / `admin`) and change the password via the User Administration panel.
 
