@@ -101,6 +101,7 @@ body {
   border-radius: 12px;
   padding: 1rem;
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+  -webkit-backdrop-filter: blur(2px);
   backdrop-filter: blur(2px);
 }
 
@@ -429,6 +430,7 @@ td {
   padding: 2.5rem 3rem;
   background: rgba(255, 255, 255, 0.12);
   border-radius: 16px;
+  -webkit-backdrop-filter: blur(6px);
   backdrop-filter: blur(6px);
 }
 
