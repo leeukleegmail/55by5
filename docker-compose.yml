@@ -3,7 +3,7 @@ services:
     build: .
     container_name: darts-55by5
     ports:
-      - "5002:5000"
+      - "5010:5000"
     volumes:
       - darts_data:/data
     environment:

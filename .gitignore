@@ -27,3 +27,4 @@ instance/
 # Editor/OS files
 .DS_Store
 .vscode/
+darts.db
