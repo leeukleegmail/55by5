@@ -252,6 +252,51 @@ def test_admin_login_can_create_user(auth_client):
     assert create_user.get_json()["username"] == "viewer"
 
 
+def test_admin_can_list_users_and_update_password(auth_client):
+    login = auth_client.post(
+        "/login",
+        data={"username": "admin", "password": "admin"},
+        follow_redirects=False,
+    )
+    assert login.status_code == 302
+
+    created = auth_client.post(
+        "/api/auth/users",
+        json={"username": "manager", "password": "oldpassword", "is_admin": False},
+    )
+    assert created.status_code == 201
+    created_user = created.get_json()
+
+    listed = auth_client.get("/api/auth/users")
+    assert listed.status_code == 200
+    usernames = [user["username"] for user in listed.get_json()]
+    assert "admin" in usernames
+    assert "manager" in usernames
+
+    updated = auth_client.put(
+        f"/api/auth/users/{created_user['id']}/password",
+        json={"password": "newpassword"},
+    )
+    assert updated.status_code == 200
+    assert updated.get_json()["username"] == "manager"
+
+    auth_client.post("/logout", follow_redirects=False)
+
+    old_login = auth_client.post(
+        "/login",
+        data={"username": "manager", "password": "oldpassword"},
+        follow_redirects=False,
+    )
+    assert old_login.status_code == 401
+
+    new_login = auth_client.post(
+        "/login",
+        data={"username": "manager", "password": "newpassword"},
+        follow_redirects=False,
+    )
+    assert new_login.status_code == 302
+
+
 def test_non_admin_cannot_clear_history(auth_client):
     admin_login = auth_client.post(
         "/login",
@@ -265,6 +310,7 @@ def test_non_admin_cannot_clear_history(auth_client):
         json={"username": "player1", "password": "playerpass", "is_admin": False},
     )
     assert created.status_code == 201
+    player = created.get_json()
 
     auth_client.post("/logout", follow_redirects=False)
 
@@ -278,6 +324,17 @@ def test_non_admin_cannot_clear_history(auth_client):
     denied = auth_client.delete("/api/games/history")
     assert denied.status_code == 403
     assert denied.get_json()["error"] == "Admin access required."
+
+    denied_list = auth_client.get("/api/auth/users")
+    assert denied_list.status_code == 403
+    assert denied_list.get_json()["error"] == "Admin access required."
+
+    denied_update = auth_client.put(
+        f"/api/auth/users/{player['id']}/password",
+        json={"password": "anotherpass"},
+    )
+    assert denied_update.status_code == 403
+    assert denied_update.get_json()["error"] == "Admin access required."
 
 
 def test_login_rejects_invalid_password(auth_client):
@@ -572,6 +629,30 @@ def test_create_english_cricket_solo_mode(client):
     assert game["game_type"] == "english_cricket"
     assert game["team_mode"] == "solo"
     assert game["cricket_state"]["inning"] == 1
+    assert game["cricket_state"]["batting_team"] == "team_a"
+    assert game["cricket_state"]["bowling_team"] == "team_b"
+    assert game["active_player_id"] == p2
+
+
+def test_create_english_cricket_can_choose_starting_batting_team(client):
+    p1 = add_player(client, "Cricket C")
+    p2 = add_player(client, "Cricket D")
+
+    res = client.post(
+        "/api/games",
+        json={
+            "ordered_player_ids": [p1, p2],
+            "game_type": "english_cricket",
+            "team_mode": "solo",
+            "starting_batting_team": "team_b",
+        },
+    )
+    assert res.status_code == 201
+    game = res.get_json()["game"]
+    assert game["cricket_state"]["starting_batting_team"] == "team_b"
+    assert game["cricket_state"]["batting_team"] == "team_b"
+    assert game["cricket_state"]["bowling_team"] == "team_a"
+    assert game["active_player_id"] == p1
 
 
 def test_english_cricket_runs_and_wickets_finish_game(client):
@@ -587,7 +668,9 @@ def test_english_cricket_runs_and_wickets_finish_game(client):
         },
     ).get_json()["game"]
 
-    # Inning 1: Team A bats once (+10 runs), Team B closes innings with 10 marks.
+    # Inning 1: Team B bowls first, Team A bats, then Team B closes the innings.
+    opening_bowl = client.post(f"/api/games/{game['id']}/turn", json={"player_id": p2, "total_points": 0})
+    assert opening_bowl.status_code == 200
     bat = client.post(f"/api/games/{game['id']}/turn", json={"player_id": p1, "total_points": 50})
     assert bat.status_code == 200
     bowl = client.post(f"/api/games/{game['id']}/turn", json={"player_id": p2, "total_points": 10})

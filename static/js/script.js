@@ -7,9 +7,13 @@ const state = {
   teamMode: "solo",
   teamAssignments: {},
   cricketPendingMarks: 0,
+  cricketSelectedMarks: [],
+  cricketStartingBattingTeam: "team_a",
 };
 
 const appShellEl = document.querySelector(".app-shell");
+const heroTitleEl = document.getElementById("hero-title");
+const heroSubtitleEl = document.getElementById("hero-subtitle");
 const playersPanelEl = document.getElementById("players-panel");
 const gameSelectionPanelEl = document.getElementById("game-selection-panel");
 const setupPanelEl = document.getElementById("setup-panel");
@@ -29,7 +33,10 @@ const sharedTurnActionsEl = document.querySelector(".shared-actions");
 const quickBoardEl = document.getElementById("quick-board");
 const bullHitEl = document.getElementById("bull-hit");
 const selectedGameLabelEl = document.getElementById("selected-game-label");
+const changeGameBtnEl = document.getElementById("change-game");
 const teamAssignmentEl = document.getElementById("team-assignment");
+const cricketRoleSelectionEl = document.getElementById("cricket-role-selection");
+const cricketRoleOptionsEl = document.getElementById("cricket-role-options");
 const teamAListEl = document.getElementById("team-a-list");
 const teamBListEl = document.getElementById("team-b-list");
 const turnInputLabelEl = document.getElementById("turn-input-label");
@@ -44,6 +51,7 @@ const scoreWarningBannerEl = document.getElementById("score-warning-banner");
 const currentUserEl = document.getElementById("current-user");
 const adminPanelEl = document.getElementById("admin-panel");
 const clearHistoryEl = document.getElementById("clear-history");
+const userAccountsListEl = document.getElementById("user-accounts-list");
 
 let bustBannerTimeoutId = null;
 let scoreWarningTimeoutId = null;
@@ -160,6 +168,38 @@ function showMessage(text, isError = false) {
   messageEl.className = isError ? "message error" : "message";
 }
 
+function renderAdminUsers(users) {
+  if (!userAccountsListEl) return;
+
+  if (!users.length) {
+    userAccountsListEl.innerHTML = '<li class="hint">No user accounts found.</li>';
+    return;
+  }
+
+  userAccountsListEl.innerHTML = users
+    .map((user) => `
+      <li class="admin-user-item">
+        <div class="admin-user-meta">
+          <strong>${user.username}</strong>
+          <span class="admin-user-badges">
+            ${user.is_admin ? '<span class="chip chip-static">Admin</span>' : '<span class="chip chip-static">User</span>'}
+          </span>
+        </div>
+        <form class="admin-user-password-form" data-user-id="${user.id}">
+          <input type="password" name="password" minlength="8" placeholder="New password" required />
+          <button type="submit">Update Password</button>
+        </form>
+      </li>
+    `)
+    .join("");
+}
+
+async function loadAdminUsers() {
+  if (!userAccountsListEl) return;
+  const users = await api("/api/auth/users");
+  renderAdminUsers(users);
+}
+
 async function submitScore(totalPoints) {
   if (!state.game || state.game.status !== "active") return;
 
@@ -179,6 +219,7 @@ async function submitScore(totalPoints) {
     });
     state.game = response.game;
     state.cricketPendingMarks = 0;
+    state.cricketSelectedMarks = [];
 
     const turnTotalInput = document.getElementById("turn-total");
     if (turnTotalInput) {
@@ -186,7 +227,7 @@ async function submitScore(totalPoints) {
     }
     const cricketBattingInput = document.getElementById("cricket-batting-total");
     if (cricketBattingInput) {
-      cricketBattingInput.value = "0";
+      cricketBattingInput.value = "";
     }
 
     renderGame();
@@ -206,9 +247,14 @@ async function submitScore(totalPoints) {
     }
 
     if (response.game.game_type === "english_cricket") {
+      const resultLabel = t.counted
+        ? t.total_points <= 6
+          ? `${t.fives_awarded} wicket mark${t.fives_awarded === 1 ? "" : "s"}`
+          : `${t.fives_awarded} run${t.fives_awarded === 1 ? "" : "s"}`
+        : "no score";
       showMessage(
         t.counted
-          ? `Cricket turn saved: ${t.total_points} registered ${t.fives_awarded}.`
+          ? `Cricket turn saved: ${resultLabel}.`
           : `Cricket turn saved: ${t.total_points} with no score.`
       );
       return;
@@ -267,12 +313,111 @@ function selectedGameName() {
   return "";
 }
 
+function updateHeroCopy(game) {
+  if (!heroTitleEl || !heroSubtitleEl) return;
+
+  const activeGameType = game?.game_type || state.gameType;
+  if (activeGameType === "55by5") {
+    heroTitleEl.textContent = "55 by 5";
+    heroSubtitleEl.textContent = "Score in multiples of 5 and reach exactly 55 fives to win the game.";
+    return;
+  }
+
+  if (activeGameType === "english_cricket") {
+    heroTitleEl.textContent = "English Cricket";
+    heroSubtitleEl.textContent = "Batting scores runs above 40 while bowling hunts 10 bull hits to finish the innings.";
+    return;
+  }
+
+  heroTitleEl.textContent = "Set Up Your Darts Game";
+  heroSubtitleEl.textContent = "Choose a game mode, pick your players, and arrange the match before you start scoring.";
+}
+
 function getTeamMode() {
   const checked = document.querySelector("input[name='team-mode']:checked");
   if (!(checked instanceof HTMLInputElement)) {
     return "solo";
   }
   return checked.value === "teams" ? "teams" : "solo";
+}
+
+function oppositeTeam(teamKey) {
+  return teamKey === "team_b" ? "team_a" : "team_b";
+}
+
+function renderCricketRoleSelection() {
+  if (!cricketRoleSelectionEl || !cricketRoleOptionsEl) return;
+
+  const show = state.gameType === "english_cricket";
+  cricketRoleSelectionEl.classList.toggle("hidden", !show);
+  if (!show) {
+    cricketRoleOptionsEl.innerHTML = "";
+    return;
+  }
+
+  const selectedPlayers = state.orderedPlayerIds
+    .map((id) => state.players.find((player) => player.id === id))
+    .filter(Boolean);
+
+  let options = [];
+  if (state.teamMode === "teams") {
+    syncTeamAssignments();
+    const teamAPlayers = selectedPlayers.filter((player) => state.teamAssignments[player.id] === "team_a");
+    const teamBPlayers = selectedPlayers.filter((player) => state.teamAssignments[player.id] === "team_b");
+
+    if (!teamAPlayers.length || !teamBPlayers.length) {
+      cricketRoleOptionsEl.innerHTML = '<p class="hint">Assign at least one player to each team to choose who bats first.</p>';
+      return;
+    }
+
+    options = [
+      { key: "team_a", label: "Team A", meta: teamAPlayers.map((player) => player.name).join(", ") },
+      { key: "team_b", label: "Team B", meta: teamBPlayers.map((player) => player.name).join(", ") },
+    ];
+  } else {
+    const [firstPlayer, secondPlayer] = selectedPlayers;
+    if (!firstPlayer || !secondPlayer) {
+      cricketRoleOptionsEl.innerHTML = '<p class="hint">Select two players to choose who bats first.</p>';
+      return;
+    }
+
+    options = [
+      { key: "team_a", label: firstPlayer.name, meta: "Selected as Player 1" },
+      { key: "team_b", label: secondPlayer.name, meta: "Selected as Player 2" },
+    ];
+  }
+
+  if (!options.some((option) => option.key === state.cricketStartingBattingTeam)) {
+    state.cricketStartingBattingTeam = options[0].key;
+  }
+
+  cricketRoleOptionsEl.innerHTML = options
+    .map((option) => {
+      const otherSide = options.find((candidate) => candidate.key === oppositeTeam(option.key));
+      return `
+        <label class="cricket-role-choice">
+          <input
+            type="radio"
+            name="cricket-starting-batting"
+            value="${option.key}"
+            ${state.cricketStartingBattingTeam === option.key ? "checked" : ""}
+          />
+          <span>
+            <strong>${option.label} bats first</strong>
+            <small>${option.meta}. ${otherSide?.label || "The other side"} bowls first and throws first.</small>
+          </span>
+        </label>
+      `;
+    })
+    .join("");
+
+  cricketRoleOptionsEl.querySelectorAll('input[name="cricket-starting-batting"]').forEach((input) => {
+    input.addEventListener("change", (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLInputElement)) return;
+      state.cricketStartingBattingTeam = target.value === "team_b" ? "team_b" : "team_a";
+    });
+  });
 }
 
 function syncTeamAssignments() {
@@ -336,6 +481,7 @@ function updateOrderFromTeamLists() {
 
   state.orderedPlayerIds = interleaveTeamOrder(teamAIds, teamBIds);
   renderOrderList();
+  renderCricketRoleSelection();
 }
 
 function renderTeamAssignment() {
@@ -346,6 +492,7 @@ function renderTeamAssignment() {
     orderSectionEl.classList.toggle("hidden", show);
   }
   if (!show) {
+    renderCricketRoleSelection();
     return;
   }
 
@@ -369,6 +516,7 @@ function renderTeamAssignment() {
   }
 
   updateOrderFromTeamLists();
+  renderCricketRoleSelection();
 }
 
 function setupTeamDragAndDrop() {
@@ -476,11 +624,12 @@ function setupDragAndDrop() {
   orderListEl.addEventListener("drop", () => {
     const ids = Array.from(orderListEl.querySelectorAll("li")).map((li) => Number(li.dataset.id));
     state.orderedPlayerIds = ids;
+    renderCricketRoleSelection();
   });
 }
 
 function renderQuickBoard() {
-  const values = [0, 5, 10, 15, 20, 25, 30, 40, 45, 50, 60, 75, 100];
+  const values = [5, 10, 15, 20, 25, 30, 40, 45, 50, 60, 75, 100];
   quickBoardEl.innerHTML = "";
   values.forEach((value) => {
     const button = document.createElement("button");
@@ -598,8 +747,12 @@ function renderCricketDashboard(game) {
   const runs = cs.runs || {};
   const completedMarks = wickets[bowlingTeam] || 0;
   const remainingMarks = Math.max(10 - completedMarks, 0);
-  const maxSelectable = isBowlingTurn ? Math.min(3, remainingMarks) : 0;
-  state.cricketPendingMarks = Math.max(0, Math.min(state.cricketPendingMarks || 0, maxSelectable));
+  const maxPerThrow = Math.min(6, remainingMarks);
+
+  state.cricketSelectedMarks = (state.cricketSelectedMarks || []).filter(
+    (slot) => Number.isFinite(slot) && slot > completedMarks && slot <= 10,
+  );
+  state.cricketPendingMarks = state.cricketSelectedMarks.length;
 
   const bullMarkup = Array.from({ length: 10 }, (_, index) => {
     const slot = index + 1;
@@ -607,16 +760,15 @@ function renderCricketDashboard(game) {
       return `<button type="button" class="bullseye-chip is-hit" disabled aria-label="Bullseye ${slot} already hit"></button>`;
     }
 
-    const relativeCount = slot - completedMarks;
-    const isSelected = relativeCount > 0 && relativeCount <= state.cricketPendingMarks;
-    const interactive = isBowlingTurn && relativeCount <= maxSelectable;
+    const isSelected = state.cricketSelectedMarks.includes(slot);
+    const interactive = isBowlingTurn;
     return `
       <button
         type="button"
         class="bullseye-chip${isSelected ? " is-selected" : ""}${interactive ? "" : " is-blocked"}"
-        data-bowling-marks="${relativeCount}"
+        data-bowling-slot="${slot}"
         ${interactive ? "" : "disabled"}
-        aria-label="Select ${relativeCount} bull hit${relativeCount === 1 ? "" : "s"} for this turn"
+        aria-label="Toggle wicket mark ${slot - completedMarks} for this throw"
       ></button>
     `;
   }).join("");
@@ -639,19 +791,18 @@ function renderCricketDashboard(game) {
     </div>
     <p class="cricket-panel-note">
       ${isBowlingTurn
-        ? `${activePlayer?.name || bowlingInfo.title} is bowling. Click the next bullseye that matches this turn's hits.`
+        ? `${activePlayer?.name || bowlingInfo.title} is bowling. Click any bull markers hit this throw in any order, then submit the total.`
         : `${battingInfo.title} is currently at the oche.`}
     </p>
     <div class="cricket-bull-grid" aria-label="Bowling wicket tracker">
       ${bullMarkup}
     </div>
     <div class="cricket-selection-row">
-      <strong>This turn: ${state.cricketPendingMarks}</strong>
-      <span>${remainingMarks} wicket${remainingMarks === 1 ? "" : "s"} remaining</span>
+      <strong>This throw: ${state.cricketPendingMarks} selected</strong>
+      <span>Maximum 6 per throw • ${remainingMarks} wicket mark${remainingMarks === 1 ? "" : "s"} remaining</span>
     </div>
     <div class="cricket-panel-actions">
       <button id="cricket-submit-bowling" type="button" ${isBowlingTurn ? "" : "disabled"}>Submit Bull Hits</button>
-      <button id="cricket-no-wicket" type="button" ${isBowlingTurn ? "" : "disabled"}>No Wicket</button>
     </div>
   `;
 
@@ -668,20 +819,27 @@ function renderCricketDashboard(game) {
       </div>
     </div>
     <label class="cricket-entry-field" for="cricket-batting-total">
-      <span>Number hit with 3 darts</span>
-      <input id="cricket-batting-total" type="number" min="0" max="180" value="0" ${isBattingTurn ? "" : "disabled"} />
+      <span>Score</span>
+      <input id="cricket-batting-total" type="number" min="0" max="180" value="" ${isBattingTurn ? "" : "disabled"} />
     </label>
-    <p class="cricket-panel-note">Only totals above 40 add runs in English Cricket.</p>
     <div class="cricket-panel-actions">
       <button id="cricket-submit-batting" type="button" ${isBattingTurn ? "" : "disabled"}>Submit Score</button>
       <button id="cricket-no-score" type="button" ${isBattingTurn ? "" : "disabled"}>No Score</button>
     </div>
   `;
 
-  cricketBowlingPanelEl.querySelectorAll("[data-bowling-marks]").forEach((button) => {
+  cricketBowlingPanelEl.querySelectorAll("[data-bowling-slot]").forEach((button) => {
     button.addEventListener("click", () => {
-      const selected = Number(button.getAttribute("data-bowling-marks"));
-      state.cricketPendingMarks = Number.isFinite(selected) ? selected : 0;
+      const slot = Number(button.getAttribute("data-bowling-slot"));
+      if (!Number.isFinite(slot)) return;
+
+      if (state.cricketSelectedMarks.includes(slot)) {
+        state.cricketSelectedMarks = state.cricketSelectedMarks.filter((value) => value !== slot);
+      } else {
+        state.cricketSelectedMarks = [...state.cricketSelectedMarks, slot].sort((a, b) => a - b);
+      }
+
+      state.cricketPendingMarks = state.cricketSelectedMarks.length;
       const hiddenInput = document.getElementById("turn-total");
       if (hiddenInput) {
         hiddenInput.value = String(state.cricketPendingMarks);
@@ -693,15 +851,11 @@ function renderCricketDashboard(game) {
   const submitBowlingBtn = document.getElementById("cricket-submit-bowling");
   if (submitBowlingBtn) {
     submitBowlingBtn.addEventListener("click", async () => {
+      if (state.cricketPendingMarks > 6) {
+        showMessage("A bowling throw can score at most 6 wicket marks.", true);
+        return;
+      }
       await submitScore(state.cricketPendingMarks || 0);
-    });
-  }
-
-  const noWicketBtn = document.getElementById("cricket-no-wicket");
-  if (noWicketBtn) {
-    noWicketBtn.addEventListener("click", async () => {
-      state.cricketPendingMarks = 0;
-      await submitScore(0);
     });
   }
 
@@ -742,6 +896,12 @@ function renderCricketDashboard(game) {
 
 function applyLayoutMode(game) {
   const activeMode = game && game.status === "active";
+  const hasSelectedGame = Boolean(game?.game_type || state.gameType);
+
+  updateHeroCopy(game);
+  if (changeGameBtnEl) {
+    changeGameBtnEl.classList.toggle("hidden", !hasSelectedGame);
+  }
 
   if (activeMode) {
     gameSelectionPanelEl.classList.add("hidden");
@@ -841,7 +1001,7 @@ function renderGame() {
     const li = document.createElement("li");
     const turnNote = isCricket
       ? (turn.counted
-        ? `+${turn.fives_awarded} ${turn.total_points > 3 ? "runs" : "bull hits"}`
+        ? `+${turn.fives_awarded} ${turn.total_points <= 6 ? "wicket marks" : "runs"}`
         : "no score")
       : turn.counted
         ? `+${turn.fives_awarded} fives`
@@ -880,6 +1040,7 @@ async function loadActiveGame() {
     state.gameType = state.game.game_type || "55by5";
     state.teamMode = state.game.team_mode || "solo";
     state.teamAssignments = state.game.team_assignments || {};
+    state.cricketStartingBattingTeam = state.game.cricket_state?.starting_batting_team || state.game.cricket_state?.batting_team || "team_a";
   }
   renderGame();
 }
@@ -924,6 +1085,11 @@ async function loadAuthUser() {
       clearHistoryEl.classList.add("hidden");
     }
   }
+  if (user.is_admin) {
+    await loadAdminUsers();
+  } else if (userAccountsListEl) {
+    userAccountsListEl.innerHTML = "";
+  }
 }
 
 async function init() {
@@ -934,7 +1100,6 @@ async function init() {
 
   const choose55Btn = document.getElementById("choose-55by5");
   const chooseCricketBtn = document.getElementById("choose-english-cricket");
-  const changeGameBtn = document.getElementById("change-game");
   const teamModeSoloEl = document.getElementById("team-mode-solo");
   const teamModeTeamsEl = document.getElementById("team-mode-teams");
 
@@ -942,6 +1107,7 @@ async function init() {
     choose55Btn.addEventListener("click", () => {
       state.gameType = "55by5";
       state.teamMode = getTeamMode();
+      state.cricketStartingBattingTeam = "team_a";
       applyLayoutMode(state.game);
       renderTeamAssignment();
     });
@@ -951,16 +1117,19 @@ async function init() {
     chooseCricketBtn.addEventListener("click", () => {
       state.gameType = "english_cricket";
       state.teamMode = getTeamMode();
+      state.cricketStartingBattingTeam = "team_a";
       applyLayoutMode(state.game);
       renderTeamAssignment();
     });
   }
 
-  if (changeGameBtn) {
-    changeGameBtn.addEventListener("click", () => {
+  if (changeGameBtnEl) {
+    changeGameBtnEl.addEventListener("click", () => {
       state.gameType = null;
       state.teamAssignments = {};
+      state.cricketStartingBattingTeam = "team_a";
       applyLayoutMode(state.game);
+      renderCricketRoleSelection();
     });
   }
 
@@ -1048,11 +1217,14 @@ async function init() {
           game_type: state.gameType,
           team_mode: state.teamMode,
           team_assignments: teamAssignments,
+          starting_batting_team: state.gameType === "english_cricket" ? state.cricketStartingBattingTeam : undefined,
         }),
       });
       state.game = response.game;
       state.gameType = response.game.game_type;
       state.teamMode = response.game.team_mode || "solo";
+      state.teamAssignments = response.game.team_assignments || {};
+      state.cricketStartingBattingTeam = response.game.cricket_state?.starting_batting_team || state.cricketStartingBattingTeam;
       renderGame();
       await loadHistory();
       showMessage("Game started.");
@@ -1074,6 +1246,7 @@ async function init() {
           body: JSON.stringify({ username, password, is_admin: isAdmin }),
         });
         createUserForm.reset();
+        await loadAdminUsers();
         showMessage("User created.");
       } catch (err) {
         showMessage(err.message, true);
@@ -1089,6 +1262,29 @@ async function init() {
         const result = await api("/api/games/history", { method: "DELETE" });
         await loadHistory();
         showMessage(`Deleted ${result.deleted_games} game(s) from history.`);
+      } catch (err) {
+        showMessage(err.message, true);
+      }
+    });
+  }
+
+  if (userAccountsListEl) {
+    userAccountsListEl.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const form = event.target;
+      if (!(form instanceof HTMLFormElement)) return;
+
+      const userId = form.getAttribute("data-user-id");
+      const passwordInput = form.querySelector('input[name="password"]');
+      if (!userId || !(passwordInput instanceof HTMLInputElement)) return;
+
+      try {
+        await api(`/api/auth/users/${userId}/password`, {
+          method: "PUT",
+          body: JSON.stringify({ password: passwordInput.value }),
+        });
+        form.reset();
+        showMessage("Password updated.");
       } catch (err) {
         showMessage(err.message, true);
       }

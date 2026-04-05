@@ -136,7 +136,7 @@ def start_single_player_game(browser, player_name: str):
     _wait(browser).until(ec.visibility_of_element_located((By.CSS_SELECTOR, "#active-game-meta .current-player")))
 
 
-def start_cricket_game(browser, first_player: str, second_player: str):
+def start_cricket_game(browser, first_player: str, second_player: str, starting_batting_team=None):
     _wait(browser).until(ec.element_to_be_clickable((By.ID, "choose-english-cricket"))).click()
     _wait(browser).until(ec.visibility_of_element_located((By.ID, "setup-panel")))
 
@@ -152,6 +152,12 @@ def start_cricket_game(browser, first_player: str, second_player: str):
         )
         if not player_checkbox.is_selected():
             player_checkbox.click()
+
+    _wait(browser).until(ec.presence_of_all_elements_located((By.NAME, "cricket-starting-batting")))
+    if starting_batting_team:
+        role_radio = browser.find_element(By.CSS_SELECTOR, f"input[name='cricket-starting-batting'][value='{starting_batting_team}']")
+        if not role_radio.is_selected():
+            role_radio.click()
 
     browser.find_element(By.ID, "start-game").click()
     _wait(browser).until(ec.visibility_of_element_located((By.ID, "live-panel")))
@@ -197,8 +203,20 @@ def test_english_cricket_live_view_uses_two_panels(live_server, browser):
     assert "bowling side" in bowling_panel.text.lower()
     assert "batting side" in batting_panel.text.lower()
     assert len(browser.find_elements(By.CSS_SELECTOR, "#cricket-bowling-panel .bullseye-chip")) == 10
-    assert batting_input.is_enabled()
+    assert not batting_input.is_enabled()
+    assert "Jules to Throw" in browser.find_element(By.ID, "active-game-meta").text
 
+    bull_buttons = browser.find_elements(By.CSS_SELECTOR, "#cricket-bowling-panel .bullseye-chip:not([disabled])")
+    assert len(bull_buttons) == 10
+    for index in (0, 2, 4, 6, 8, 9):
+        browser.find_elements(By.CSS_SELECTOR, "#cricket-bowling-panel .bullseye-chip:not([disabled])")[index].click()
+
+    _wait(browser).until(lambda d: len(d.find_elements(By.CSS_SELECTOR, "#cricket-bowling-panel .bullseye-chip.is-selected")) == 6)
+    browser.find_element(By.ID, "cricket-submit-bowling").click()
+
+    _wait(browser).until(ec.text_to_be_present_in_element((By.ID, "active-game-meta"), "Ivy to Throw"))
+    _wait(browser).until(lambda d: len(d.find_elements(By.CSS_SELECTOR, "#cricket-bowling-panel .bullseye-chip.is-hit")) == 6)
+    batting_input = _wait(browser).until(ec.element_to_be_clickable((By.ID, "cricket-batting-total")))
     batting_input.clear()
     batting_input.send_keys("60")
     browser.find_element(By.ID, "cricket-submit-batting").click()
@@ -206,6 +224,24 @@ def test_english_cricket_live_view_uses_two_panels(live_server, browser):
     _wait(browser).until(ec.text_to_be_present_in_element((By.ID, "active-game-meta"), "Jules to Throw"))
     updated_bowling_panel = browser.find_element(By.ID, "cricket-bowling-panel")
     assert "is-active" in updated_bowling_panel.get_attribute("class")
+
+
+def test_english_cricket_shows_message_only_when_more_than_six_marks_selected(live_server, browser):
+    browser.get(live_server)
+    start_cricket_game(browser, "Kai", "Lena")
+
+    bull_buttons = browser.find_elements(By.CSS_SELECTOR, "#cricket-bowling-panel .bullseye-chip:not([disabled])")
+    assert len(bull_buttons) == 10
+    assert "at most 6 wicket marks" not in browser.find_element(By.ID, "message").text
+
+    for index in range(7):
+        browser.find_elements(By.CSS_SELECTOR, "#cricket-bowling-panel .bullseye-chip:not([disabled])")[index].click()
+
+    assert "at most 6 wicket marks" not in browser.find_element(By.ID, "message").text
+    browser.find_element(By.ID, "cricket-submit-bowling").click()
+
+    _wait(browser).until(ec.text_to_be_present_in_element((By.ID, "message"), "at most 6 wicket marks"))
+    assert "Lena to Throw" in browser.find_element(By.ID, "active-game-meta").text
 
 
 def test_quit_requires_confirmation(live_server, browser):

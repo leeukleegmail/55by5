@@ -60,6 +60,12 @@ body {
   gap: 0.75rem;
 }
 
+.user-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
 .logout-form {
   margin: 0;
 }
@@ -95,6 +101,45 @@ body {
   gap: 0.55rem;
 }
 
+.admin-users-section {
+  margin-top: 1rem;
+}
+
+.admin-users-list {
+  margin-top: 0.5rem;
+}
+
+.admin-user-item {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.admin-user-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.admin-user-badges {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.chip-static {
+  pointer-events: none;
+}
+
+.admin-user-password-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.admin-user-password-form input {
+  flex: 1 1 220px;
+}
+
 .panel {
   background: var(--card);
   border: 1px solid var(--line);
@@ -107,25 +152,47 @@ body {
 
 .inline-form {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.5rem;
+}
+
+#setup-panel .inline-form {
+  align-items: center;
+}
+
+#change-game {
+  white-space: nowrap;
 }
 
 .mode-buttons {
   display: grid;
-  grid-template-columns: repeat(2, minmax(180px, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.75rem;
   margin-top: 0.5rem;
 }
 
 .mode-btn {
   min-height: 3rem;
+  width: 100%;
+  padding: 0.65rem 0.75rem;
   font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .team-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(170px, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.75rem;
+  align-items: start;
+  width: 100%;
+  min-width: 0;
+}
+
+.team-column {
+  min-width: 0;
 }
 
 .team-column h4 {
@@ -134,10 +201,56 @@ body {
 
 .team-list {
   min-height: 8rem;
+  min-width: 0;
 }
 
 .team-list li {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  max-width: 100%;
+  min-height: 2.2rem;
   cursor: grab;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#cricket-role-selection {
+  margin-top: 0.9rem;
+  margin-bottom: 1rem;
+}
+
+#start-game {
+  margin-top: 0.35rem;
+}
+
+.cricket-role-options {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.cricket-role-choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.cricket-role-choice input {
+  margin-top: 0.2rem;
+}
+
+.cricket-role-choice span {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.cricket-role-choice small {
+  color: #d7d6d0;
 }
 
 #order-section.hidden {
@@ -185,20 +298,56 @@ button:hover {
   background: rgba(255, 255, 255, 0.07);
 }
 
+#players-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+#players-list li strong {
+  flex: 1;
+}
+
+.history-list::-webkit-scrollbar {
+  height: 0.6rem;
+}
+
+.history-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.24);
+  border-radius: 999px;
+}
+
+.history-list::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+}
+
 .list.compact li {
   font-size: 0.92rem;
 }
 
+#history-panel {
+  grid-column: 1 / -1;
+}
+
 .history-list {
-  max-height: 8.9rem;
-  overflow-y: auto;
-  padding-right: 0.2rem;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(260px, 340px);
+  gap: 0.6rem;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0 0 0.35rem;
+  margin-top: 0.75rem;
+  scroll-snap-type: x proximity;
 }
 
 .history-list li {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  min-height: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  scroll-snap-align: start;
 }
 
 .chips {
@@ -256,7 +405,9 @@ button:hover {
 
 .quick-board button {
   background: #1f7f4d;
-  padding: 0.3rem 0.5rem;
+  min-width: 3rem;
+  padding: 0.45rem 0.7rem;
+  font-size: 1rem;
 }
 
 .turn-actions {
@@ -289,8 +440,7 @@ button:hover {
 }
 
 #no-score,
-#cricket-no-score,
-#cricket-no-wicket {
+#cricket-no-score {
   background: #aa1d1d;
 }
 
@@ -308,6 +458,7 @@ table {
   background: rgba(0, 0, 0, 0.2);
   border-radius: 8px;
   overflow: hidden;
+  border: 0;
 }
 
 th,
@@ -418,15 +569,34 @@ td {
 }
 
 .bullseye-chip {
+  position: relative;
   width: 100%;
   aspect-ratio: 1;
   border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, 0.18);
-  background:
-    radial-gradient(circle, #d53939 0 18%, #f3e9bf 18% 32%, #1f7f4d 32% 50%, #f3e9bf 50% 100%);
+  border: 0;
+  background: url("../assets/bull.png") center / cover no-repeat;
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.28);
   cursor: pointer;
-  transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+  overflow: hidden;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease, filter 0.15s ease;
+}
+
+.bullseye-chip::before,
+.bullseye-chip::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 12%;
+  width: 76%;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(227, 55, 55, 0.92);
+  opacity: 0;
+  transform: translateY(-50%) rotate(45deg);
+}
+
+.bullseye-chip::after {
+  transform: translateY(-50%) rotate(-45deg);
 }
 
 .bullseye-chip:not(:disabled):hover {
@@ -438,9 +608,15 @@ td {
   box-shadow: 0 0 0 2px rgba(255, 217, 61, 0.45), 0 0 18px rgba(255, 217, 61, 0.2);
 }
 
+.bullseye-chip.is-hit::before,
+.bullseye-chip.is-hit::after {
+  opacity: 1;
+}
+
 .bullseye-chip.is-selected {
-  transform: scale(1.03);
-  box-shadow: 0 0 0 3px rgba(131, 248, 174, 0.5), 0 0 18px rgba(131, 248, 174, 0.22);
+  filter: grayscale(0.85);
+  opacity: 0.55;
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.14), 0 0 0 2px rgba(185, 190, 198, 0.32);
 }
 
 .bullseye-chip.is-blocked {

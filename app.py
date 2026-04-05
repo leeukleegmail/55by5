@@ -187,6 +187,35 @@ def normalize_team_mode(raw_mode: str | None) -> str:
     return "teams" if team_mode == "teams" else "solo"
 
 
+def normalize_cricket_team(raw_team: str | None, default: str = TEAM_A) -> str:
+    team = (raw_team or default).strip().lower() if isinstance(raw_team, str) else default
+    return TEAM_B if team == TEAM_B else TEAM_A
+
+
+def build_initial_cricket_state(starting_batting_team: str | None = TEAM_A) -> dict:
+    batting_team = normalize_cricket_team(starting_batting_team, TEAM_A)
+    bowling_team = TEAM_B if batting_team == TEAM_A else TEAM_A
+    return {
+        "inning": 1,
+        "starting_batting_team": batting_team,
+        "starting_bowling_team": bowling_team,
+        "batting_team": batting_team,
+        "bowling_team": bowling_team,
+        "runs": {TEAM_A: 0, TEAM_B: 0},
+        "wickets": {TEAM_A: 0, TEAM_B: 0},
+    }
+
+
+def starting_turn_position(ordered_players: list[dict], assignments: dict[int, str], bowling_team: str | None) -> int:
+    if not ordered_players:
+        return 0
+    preferred_team = normalize_cricket_team(bowling_team, TEAM_B)
+    for index, player in enumerate(ordered_players):
+        if assignments.get(player["id"], TEAM_A) == preferred_team:
+            return index
+    return 0
+
+
 def normalize_total_points(raw_total: int) -> tuple[int | None, str | None]:
     if not isinstance(raw_total, int):
         return None, "total_points must be an integer."
@@ -223,13 +252,7 @@ def parse_team_assignments(raw_value: str | None) -> dict[int, str]:
 
 
 def parse_cricket_state(raw_value: str | None) -> dict:
-    default_state = {
-        "inning": 1,
-        "batting_team": TEAM_A,
-        "bowling_team": TEAM_B,
-        "runs": {TEAM_A: 0, TEAM_B: 0},
-        "wickets": {TEAM_A: 0, TEAM_B: 0},
-    }
+    default_state = build_initial_cricket_state(TEAM_A)
     if not raw_value:
         return default_state
 
@@ -243,17 +266,26 @@ def parse_cricket_state(raw_value: str | None) -> dict:
     inning = decoded.get("inning", 1)
     if inning not in (1, 2):
         inning = 1
-    batting_team = decoded.get("batting_team", TEAM_A)
-    bowling_team = decoded.get("bowling_team", TEAM_B)
-    if batting_team not in {TEAM_A, TEAM_B}:
-        batting_team = TEAM_A
-    if bowling_team not in {TEAM_A, TEAM_B}:
-        bowling_team = TEAM_B
+
+    batting_team = normalize_cricket_team(decoded.get("batting_team"), TEAM_A)
+    bowling_team = normalize_cricket_team(decoded.get("bowling_team"), TEAM_B)
+    if batting_team == bowling_team:
+        bowling_team = TEAM_B if batting_team == TEAM_A else TEAM_A
+
+    starting_batting_team = normalize_cricket_team(decoded.get("starting_batting_team"), batting_team)
+    starting_bowling_team = normalize_cricket_team(
+        decoded.get("starting_bowling_team"),
+        TEAM_B if starting_batting_team == TEAM_A else TEAM_A,
+    )
+    if starting_batting_team == starting_bowling_team:
+        starting_bowling_team = TEAM_B if starting_batting_team == TEAM_A else TEAM_A
 
     runs = decoded.get("runs", {}) or {}
     wickets = decoded.get("wickets", {}) or {}
     return {
         "inning": inning,
+        "starting_batting_team": starting_batting_team,
+        "starting_bowling_team": starting_bowling_team,
         "batting_team": batting_team,
         "bowling_team": bowling_team,
         "runs": {
@@ -292,7 +324,12 @@ def recompute_game_state(game: Game) -> None:
     game.winner_team = None
     game.finished_at = None
 
-    cricket_state = parse_cricket_state(game.cricket_state)
+    stored_cricket_state = parse_cricket_state(game.cricket_state)
+    if game.game_type == "english_cricket":
+        cricket_state = build_initial_cricket_state(stored_cricket_state["starting_batting_team"])
+        game.current_turn_position = starting_turn_position(ordered, assignments, cricket_state["bowling_team"])
+    else:
+        cricket_state = stored_cricket_state
     team_totals = {TEAM_A: 0, TEAM_B: 0}
     turns = Turn.query.filter_by(game_id=game.id).order_by(Turn.turn_number.asc()).all()
 
@@ -528,6 +565,26 @@ def auth_me():
     return jsonify({"id": user.id, "username": user.username, "is_admin": user.is_admin})
 
 
+@app.get("/api/auth/users")
+def list_app_users():
+    user, error = require_admin_user()
+    if error:
+        return error
+
+    users = AppUser.query.order_by(func.lower(AppUser.username).asc()).all()
+    return jsonify(
+        [
+            {
+                "id": item.id,
+                "username": item.username,
+                "is_admin": item.is_admin,
+                "created_at": now_iso(item.created_at),
+            }
+            for item in users
+        ]
+    )
+
+
 @app.post("/api/auth/users")
 def create_app_user():
     user, error = require_admin_user()
@@ -557,6 +614,33 @@ def create_app_user():
     db.session.commit()
 
     return jsonify({"id": new_user.id, "username": new_user.username, "is_admin": new_user.is_admin}), 201
+
+
+@app.put("/api/auth/users/<int:user_id>/password")
+def update_app_user_password(user_id: int):
+    user, error = require_admin_user()
+    if error:
+        return error
+
+    target_user = db.session.get(AppUser, user_id)
+    if not target_user:
+        return jsonify({"error": "User not found."}), 404
+
+    payload = request.get_json(silent=True) or {}
+    password = payload.get("password") or ""
+    if len(password) < 8:
+        return jsonify({"error": "Password must be at least 8 characters."}), 400
+
+    target_user.password_hash = generate_password_hash(password, method="pbkdf2:sha256")
+    db.session.commit()
+
+    return jsonify(
+        {
+            "id": target_user.id,
+            "username": target_user.username,
+            "is_admin": target_user.is_admin,
+        }
+    )
 
 
 @app.get("/api/meta")
@@ -695,16 +779,17 @@ def create_game():
         normalized_assignments[ordered_player_ids[0]] = TEAM_A
         normalized_assignments[ordered_player_ids[1]] = TEAM_B
 
+    initial_turn_position = 0
     cricket_state = None
     if game_type == "english_cricket":
-        cricket_state = json.dumps(
-            {
-                "inning": 1,
-                "batting_team": TEAM_A,
-                "bowling_team": TEAM_B,
-                "runs": {TEAM_A: 0, TEAM_B: 0},
-                "wickets": {TEAM_A: 0, TEAM_B: 0},
-            }
+        starting_batting_team = normalize_cricket_team(payload.get("starting_batting_team"), TEAM_A)
+        opening_state = build_initial_cricket_state(starting_batting_team)
+        cricket_state = json.dumps(opening_state)
+        ordered_for_start = [{"id": player_id} for player_id in ordered_player_ids]
+        initial_turn_position = starting_turn_position(
+            ordered_for_start,
+            normalized_assignments,
+            opening_state["bowling_team"],
         )
 
     game = Game(
@@ -713,7 +798,7 @@ def create_game():
         team_mode=team_mode,
         team_assignments=json.dumps({str(k): v for k, v in normalized_assignments.items()}) if normalized_assignments else None,
         cricket_state=cricket_state,
-        current_turn_position=0,
+        current_turn_position=initial_turn_position,
     )
     db.session.add(game)
     db.session.flush()

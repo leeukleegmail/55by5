@@ -9,13 +9,16 @@
   <body>
     <main class="app-shell">
       <header class="hero">
-        <h1>55 by 5</h1>
-        <p>Enter each turn as one total score. Turn total must be divisible by 5. First to reach exactly 55 wins.</p>
+        <h1 id="hero-title">Set Up Your Darts Game</h1>
+        <p id="hero-subtitle">Choose a game mode, pick your players, and arrange the match before you start scoring.</p>
         <div class="user-bar">
           <span id="current-user"></span>
-          <form action="/logout" method="post" class="logout-form">
-            <button type="submit">Log out</button>
-          </form>
+          <div class="user-bar-actions">
+            <button id="change-game" type="button" class="btn-ghost hidden">Change Game</button>
+            <form action="/logout" method="post" class="logout-form">
+              <button type="submit">Log out</button>
+            </form>
+          </div>
         </div>
       </header>
 
@@ -24,7 +27,7 @@
           <h2>User Administration</h2>
           <button type="button" id="hide-admin-panel" class="btn-ghost" title="Hide until next login">Hide</button>
         </div>
-        <p class="hint">Admins can create application users.</p>
+        <p class="hint">Admins can create application users and reset passwords for existing accounts.</p>
         <form id="create-user-form" class="admin-form">
           <input id="new-username" type="text" maxlength="80" placeholder="Username" required />
           <input id="new-password" type="password" minlength="8" placeholder="Password (min 8 chars)" required />
@@ -34,6 +37,13 @@
           </label>
           <button type="submit">Create User</button>
         </form>
+
+        <div class="admin-users-section">
+          <div class="panel-header">
+            <h3>Current Accounts</h3>
+          </div>
+          <ul id="user-accounts-list" class="list admin-users-list"></ul>
+        </div>
       </section>
 
       <section class="panel" id="players-panel">
@@ -64,9 +74,8 @@
           </label>
           <label class="chip">
             <input type="radio" name="team-mode" id="team-mode-teams" value="teams" />
-            <span>2 Teams</span>
+            <span>Teams</span>
           </label>
-          <button id="change-game" type="button" class="btn-ghost">Change Game</button>
         </div>
         <p class="hint">Select players and drag to set turn order.</p>
         <div id="selectable-players" class="chips"></div>
@@ -83,6 +92,11 @@
               <ul id="team-b-list" class="list team-list"></ul>
             </div>
           </div>
+        </div>
+        <div id="cricket-role-selection" class="hidden">
+          <h3>Starting Roles</h3>
+          <p class="hint">Choose who bats first. The other side will bowl first and always throws first.</p>
+          <div id="cricket-role-options" class="cricket-role-options"></div>
         </div>
         <div id="order-section">
           <h3>Selected Players</h3>
