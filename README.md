@@ -204,7 +204,7 @@ Accepted total range per turn:
 ## Project layout
 
 ```text
-55by5/
+darts-scores/
  app.py
  requirements.txt
  README.md

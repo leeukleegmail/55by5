@@ -1,7 +1,7 @@
 services:
   web:
     build: .
-    container_name: darts-55by5
+    container_name: darts-scores
     ports:
       - "5010:5000"
     volumes:
