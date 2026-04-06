@@ -200,6 +200,29 @@ def test_team_assignment_can_be_configured_before_choosing_game(live_server, bro
     assert "Team B" in team_assignment.text
 
 
+def test_non_admin_user_does_not_see_clear_history_button(live_server, browser):
+    browser.get(live_server)
+
+    _wait(browser).until(ec.visibility_of_element_located((By.ID, "clear-history")))
+
+    browser.find_element(By.ID, "new-username").send_keys("viewer")
+    browser.find_element(By.ID, "new-password").send_keys("viewerpass")
+    browser.find_element(By.CSS_SELECTOR, "#create-user-form button[type='submit']").click()
+    _wait(browser).until(ec.text_to_be_present_in_element((By.ID, "user-accounts-list"), "viewer"))
+
+    browser.find_element(By.CSS_SELECTOR, ".logout-form button[type='submit']").click()
+    _wait(browser).until(ec.visibility_of_element_located((By.CSS_SELECTOR, ".login-form")))
+
+    browser.find_element(By.CSS_SELECTOR, "input[name='username']").send_keys("viewer")
+    browser.find_element(By.CSS_SELECTOR, "input[name='password']").send_keys("viewerpass")
+    browser.find_element(By.CSS_SELECTOR, ".login-form button[type='submit']").click()
+
+    _wait(browser).until(ec.visibility_of_element_located((By.ID, "players-panel")))
+    clear_history_button = browser.find_element(By.ID, "clear-history")
+    assert not clear_history_button.is_displayed()
+    assert "hidden" in clear_history_button.get_attribute("class")
+
+
 def test_55_by_5_individual_game_can_complete_end_to_end(live_server, browser):
     browser.get(live_server)
     start_single_player_game(browser, "Finn")
@@ -293,6 +316,29 @@ def test_english_cricket_shows_starting_roles_popup_before_game_start(live_serve
     assert browser.find_element(By.ID, "cricket-start-game").is_displayed()
 
 
+def test_english_cricket_rejects_more_than_two_individual_players(live_server, browser):
+    browser.get(live_server)
+
+    for player_name in ("Ivy", "Jules", "Kai"):
+        add_player(browser, player_name)
+        player_checkbox = _wait(browser).until(
+            ec.presence_of_element_located(
+                (
+                    By.XPATH,
+                    f"//div[@id='selectable-players']//label[.//span[normalize-space()='{player_name}']]//input",
+                )
+            )
+        )
+        if not player_checkbox.is_selected():
+            player_checkbox.click()
+
+    _wait(browser).until(ec.element_to_be_clickable((By.ID, "choose-english-cricket"))).click()
+
+    _wait(browser).until(ec.text_to_be_present_in_element((By.ID, "bust-banner"), "Select exactly two players before starting English Cricket."))
+    _wait(browser).until(lambda d: "visible" in d.find_element(By.ID, "bust-banner").get_attribute("class"))
+    assert not browser.find_element(By.ID, "cricket-start-overlay").is_displayed()
+
+
 def test_submit_turn_updates_score_and_clears_input(live_server, browser):
     browser.get(live_server)
     start_single_player_game(browser, "Bob")
@@ -343,6 +389,36 @@ def test_english_cricket_live_view_uses_two_panels(live_server, browser):
     _wait(browser).until(ec.text_to_be_present_in_element((By.ID, "active-game-meta"), "Jules to Throw"))
     updated_bowling_panel = browser.find_element(By.ID, "cricket-bowling-panel")
     assert "is-active" in updated_bowling_panel.get_attribute("class")
+
+
+def test_english_cricket_shows_target_and_remaining_runs_in_second_innings(live_server, browser):
+    browser.get(live_server)
+    start_cricket_game(browser, "Ivy", "Jules")
+
+    for index in (0, 2, 4, 6, 8, 9):
+        browser.find_elements(By.CSS_SELECTOR, "#cricket-bowling-panel .bullseye-chip:not([disabled])")[index].click()
+    _wait(browser).until(lambda d: len(d.find_elements(By.CSS_SELECTOR, "#cricket-bowling-panel .bullseye-chip.is-selected")) == 6)
+    browser.find_element(By.ID, "cricket-submit-bowling").click()
+
+    _wait(browser).until(ec.text_to_be_present_in_element((By.ID, "active-game-meta"), "Ivy to Throw"))
+    batting_input = _wait(browser).until(ec.element_to_be_clickable((By.ID, "cricket-batting-total")))
+    batting_input.clear()
+    batting_input.send_keys("60")
+    browser.find_element(By.ID, "cricket-submit-batting").click()
+
+    _wait(browser).until(ec.text_to_be_present_in_element((By.ID, "active-game-meta"), "Jules to Throw"))
+    for _ in range(4):
+        browser.find_elements(By.CSS_SELECTOR, "#cricket-bowling-panel .bullseye-chip:not([disabled]):not(.is-selected)")[0].click()
+    _wait(browser).until(lambda d: len(d.find_elements(By.CSS_SELECTOR, "#cricket-bowling-panel .bullseye-chip.is-selected")) == 4)
+    browser.find_element(By.ID, "cricket-submit-bowling").click()
+
+    _wait(browser).until(ec.text_to_be_present_in_element((By.ID, "cricket-batting-panel"), "Jules"))
+    _wait(browser).until(ec.text_to_be_present_in_element((By.ID, "cricket-batting-panel"), "TARGET"))
+    batting_panel = browser.find_element(By.ID, "cricket-batting-panel")
+    panel_text = batting_panel.text.lower()
+    assert "target" in panel_text
+    assert "remaining runs" in panel_text
+    assert "21" in panel_text
 
 
 def test_english_cricket_shows_message_only_when_more_than_six_marks_selected(live_server, browser):

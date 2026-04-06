@@ -164,9 +164,9 @@ body {
   white-space: nowrap;
 }
 
- .mode-buttons {
+.mode-buttons {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: 1fr;
   gap: 0.75rem;
   margin-top: 0.5rem;
 }
@@ -519,6 +519,13 @@ td {
   color: #ffd93d;
 }
 
+.cricket-score-group {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
 .cricket-score-pill {
   min-width: 88px;
   padding: 0.5rem 0.7rem;
@@ -545,6 +552,14 @@ td {
 
 .runs-pill strong {
   color: #83f8ae;
+}
+
+.target-pill strong {
+  color: #ffd93d;
+}
+
+.remaining-pill strong {
+  color: #ffb866;
 }
 
 .cricket-panel-note {

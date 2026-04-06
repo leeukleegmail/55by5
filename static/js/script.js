@@ -383,14 +383,14 @@ function getCricketStartContext() {
     };
   }
 
-  const [firstPlayer, secondPlayer] = selectedPlayers;
-  if (!firstPlayer || !secondPlayer) {
+  if (selectedPlayers.length !== 2) {
     return {
       canStart: false,
-      error: "Select two players before starting English Cricket.",
+      error: "Select exactly two players before starting English Cricket.",
     };
   }
 
+  const [firstPlayer, secondPlayer] = selectedPlayers;
   return {
     canStart: true,
     teamALabel: firstPlayer.name,
@@ -420,7 +420,7 @@ function renderCricketRoleSelection() {
   if (!context.canStart) {
     if (cricketStartOverlayEl.classList.contains("visible")) {
       closeCricketStartOverlay();
-      showMessage(context.error, true);
+      showBustBanner(context.error);
     }
     cricketStartPromptEl.textContent = "";
     cricketStartOptionsEl.innerHTML = "";
@@ -466,7 +466,7 @@ function renderCricketRoleSelection() {
 function openCricketStartOverlay() {
   const context = getCricketStartContext();
   if (!context.canStart) {
-    showMessage(context.error, true);
+    showBustBanner(context.error);
     return false;
   }
 
@@ -802,9 +802,12 @@ function renderCricketDashboard(game) {
   const { cs, battingTeam, bowlingTeam, battingInfo, bowlingInfo, activePlayer, isBattingTurn, isBowlingTurn } = getCricketContext(game);
   const wickets = cs.wickets || {};
   const runs = cs.runs || {};
+  const battingRuns = runs[battingTeam] || 0;
   const completedMarks = wickets[bowlingTeam] || 0;
   const remainingMarks = Math.max(10 - completedMarks, 0);
   const maxPerThrow = Math.min(6, remainingMarks);
+  const targetRuns = cs.inning === 2 ? (runs[bowlingTeam] || 0) + 1 : null;
+  const remainingRuns = targetRuns === null ? null : Math.max(targetRuns - battingRuns, 0);
 
   state.cricketSelectedMarks = (state.cricketSelectedMarks || []).filter(
     (slot) => Number.isFinite(slot) && slot > completedMarks && slot <= 10,
@@ -870,9 +873,21 @@ function renderCricketDashboard(game) {
         <h4>${battingInfo.title}</h4>
         <p class="hint">${battingInfo.subtitle}</p>
       </div>
-      <div class="cricket-score-pill runs-pill">
-        <span>Runs</span>
-        <strong>${runs[battingTeam] || 0}</strong>
+      <div class="cricket-score-group">
+        <div class="cricket-score-pill runs-pill">
+          <span>Runs</span>
+          <strong>${battingRuns}</strong>
+        </div>
+        ${targetRuns === null ? "" : `
+          <div class="cricket-score-pill target-pill">
+            <span>Target</span>
+            <strong>${targetRuns}</strong>
+          </div>
+          <div class="cricket-score-pill remaining-pill">
+            <span>Remaining Runs</span>
+            <strong>${remainingRuns}</strong>
+          </div>
+        `}
       </div>
     </div>
     <label class="cricket-entry-field" for="cricket-batting-total">
@@ -982,10 +997,8 @@ function applyLayoutMode(game) {
   livePanelEl.classList.remove("live-focus");
 
   if (selectedGameLabelEl) {
-    if (!state.gameType) {
+    if (!state.gameType || state.gameType === "english_cricket") {
       selectedGameLabelEl.textContent = "";
-    } else if (state.gameType === "english_cricket") {
-      selectedGameLabelEl.textContent = "Selected game: English Cricket — choose Bat or Bowl in the popup to start.";
     } else {
       selectedGameLabelEl.textContent = `Selected game: ${selectedGameName()}.`;
     }
