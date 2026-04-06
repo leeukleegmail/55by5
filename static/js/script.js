@@ -304,6 +304,10 @@ async function submitScore(totalPoints) {
         cricketBattingInput.value = "";
       }
 
+      if (response.game.status === "finished") {
+        state.gameType = null;
+      }
+
       renderGame();
       await loadHistory();
 
@@ -1549,6 +1553,7 @@ async function init() {
         winnerOverlayEl.classList.remove("visible");
       }
       state.game = null;
+      state.gameType = null;
       renderGame();
       await loadHistory();
       showMessage("Game quit.");
@@ -1562,6 +1567,8 @@ async function init() {
     winnerContinueBtn.addEventListener("click", async () => {
       if (stopFireworks) { stopFireworks(); stopFireworks = null; }
       winnerOverlayEl.classList.remove("visible");
+      state.game = null;
+      state.gameType = null;
       renderGame();
       await loadHistory();
     });
