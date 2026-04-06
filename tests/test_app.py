@@ -1,6 +1,8 @@
+from datetime import datetime, timedelta, timezone
 import importlib
 import sys
 import tempfile
+import time
 
 import pytest
 
@@ -209,6 +211,25 @@ def test_quit_active_game(client):
     assert next_game.status_code == 201
 
 
+def test_stale_active_game_is_abandoned_after_30_minutes(client_with_module):
+    client, app_module = client_with_module
+    p1 = add_player(client, "Stale Player")
+    first_game = client.post("/api/games", json={"ordered_player_ids": [p1]}).get_json()["game"]
+
+    with app_module.app.app_context():
+        stored_game = app_module.db.session.get(app_module.Game, first_game["id"])
+        stored_game.started_at = datetime.now(timezone.utc) - timedelta(minutes=31)
+        app_module.db.session.commit()
+
+    next_game = client.post("/api/games", json={"ordered_player_ids": [p1]})
+    assert next_game.status_code == 201
+
+    with app_module.app.app_context():
+        stored_game = app_module.db.session.get(app_module.Game, first_game["id"])
+        assert stored_game.status == "abandoned"
+        assert stored_game.finished_at is not None
+
+
 def test_admin_can_delete_history(client):
     p1 = add_player(client, "Hist1")
     game = client.post("/api/games", json={"ordered_player_ids": [p1]}).get_json()["game"]
@@ -243,6 +264,55 @@ def test_login_page_is_available_for_get_and_head(auth_client):
 
     head_response = auth_client.head("/login")
     assert head_response.status_code == 200
+
+
+def test_logout_quits_active_game(auth_client):
+    login = auth_client.post(
+        "/login",
+        data={"username": "admin", "password": "admin"},
+        follow_redirects=False,
+    )
+    assert login.status_code == 302
+
+    player_id = add_player(auth_client, "Log Out Player")
+    game = auth_client.post("/api/games", json={"ordered_player_ids": [player_id]}).get_json()["game"]
+
+    logout = auth_client.post("/logout", follow_redirects=False)
+    assert logout.status_code == 302
+
+    active = auth_client.get("/api/games/active")
+    assert active.status_code == 401
+
+    app_module = sys.modules["app"]
+    with app_module.app.app_context():
+        stored_game = app_module.db.session.get(app_module.Game, game["id"])
+        assert stored_game.status == "abandoned"
+        assert stored_game.finished_at is not None
+
+
+def test_inactivity_timeout_quits_active_game_and_logs_user_out(auth_client):
+    login = auth_client.post(
+        "/login",
+        data={"username": "admin", "password": "admin"},
+        follow_redirects=False,
+    )
+    assert login.status_code == 302
+
+    player_id = add_player(auth_client, "Idle Player")
+    game = auth_client.post("/api/games", json={"ordered_player_ids": [player_id]}).get_json()["game"]
+
+    with auth_client.session_transaction() as session_data:
+        session_data["last_activity_at"] = int(time.time()) - (31 * 60)
+
+    expired = auth_client.get("/api/auth/me")
+    assert expired.status_code == 401
+    assert expired.get_json()["error"] == "Session expired due to inactivity."
+
+    app_module = sys.modules["app"]
+    with app_module.app.app_context():
+        stored_game = app_module.db.session.get(app_module.Game, game["id"])
+        assert stored_game.status == "abandoned"
+        assert stored_game.finished_at is not None
 
 
 def test_admin_login_can_create_user(auth_client):

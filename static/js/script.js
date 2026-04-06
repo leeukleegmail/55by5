@@ -64,11 +64,14 @@ const helpSections = Array.from(document.querySelectorAll(".help-section"));
 const helpSectionOrder = helpSections
   .map((section) => section.getAttribute("data-help-section"))
   .filter(Boolean);
+const SESSION_IDLE_TIMEOUT_MS = 30 * 60 * 1000;
 
 let bustBannerTimeoutId = null;
 let scoreWarningTimeoutId = null;
 let pendingTurnSubmission = Promise.resolve();
 let activeHelpSection = helpSectionOrder[0] || "quick-start";
+let inactivityLogoutTimeoutId = null;
+let idleLogoutInProgress = false;
 
 function showBustBanner(text) {
   if (!bustBannerEl) return;
@@ -180,6 +183,34 @@ function showWinnerOverlay(winnerName) {
 function showMessage(text, isError = false) {
   messageEl.textContent = text;
   messageEl.className = isError ? "message error" : "message";
+}
+
+async function logoutForInactivity() {
+  if (idleLogoutInProgress) return;
+  idleLogoutInProgress = true;
+
+  try {
+    await fetch("/logout", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+    });
+  } catch (error) {
+    // Ignore network issues and continue to the login screen.
+  }
+
+  window.location.assign("/login");
+}
+
+function resetInactivityTimer() {
+  if (idleLogoutInProgress) return;
+
+  if (inactivityLogoutTimeoutId) {
+    window.clearTimeout(inactivityLogoutTimeoutId);
+  }
+
+  inactivityLogoutTimeoutId = window.setTimeout(() => {
+    logoutForInactivity();
+  }, SESSION_IDLE_TIMEOUT_MS);
 }
 
 function setHelpSection(sectionName) {
@@ -361,6 +392,9 @@ async function api(url, options = {}) {
   });
   const data = await res.json();
   if (!res.ok) {
+    if (res.status === 401) {
+      window.location.assign("/login");
+    }
     throw new Error(data.error || "Request failed");
   }
   return data;
@@ -1286,6 +1320,11 @@ async function init() {
   setupTeamDragAndDrop();
   await loadAuthUser();
   setHelpSection(activeHelpSection);
+  resetInactivityTimer();
+
+  ["click", "keydown", "mousedown", "mousemove", "scroll", "touchstart"].forEach((eventName) => {
+    window.addEventListener(eventName, resetInactivityTimer, { passive: true });
+  });
 
   const choose55Btn = document.getElementById("choose-55by5");
   const chooseCricketBtn = document.getElementById("choose-english-cricket");

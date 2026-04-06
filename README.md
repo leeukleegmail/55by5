@@ -1,6 +1,6 @@
-# 55 by 5 Darts (Flask)
+# Darts Scores (Flask)
 
-Local single-user Flask app for a 55-by-5 darts game with:
+Local single-user Flask app for darts scoring with:
 
 - Persistent player roster
 - Drag-and-drop turn order before game start

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import json
 import os
 from pathlib import Path
@@ -21,6 +21,8 @@ app.config["SESSION_COOKIE_SECURE"] = os.getenv("SESSION_COOKIE_SECURE", "false"
 app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv("SQLALCHEMY_DATABASE_URI", f"sqlite:///{DB_PATH}")
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["JSON_SORT_KEYS"] = False
+
+SESSION_IDLE_TIMEOUT_SECONDS = 30 * 60
 
 
 db = SQLAlchemy(app)
@@ -125,6 +127,56 @@ def require_admin_user() -> tuple[AppUser | None, tuple[object, int] | None]:
     return user, None
 
 
+def current_session_timestamp() -> int:
+    return int(datetime.now(timezone.utc).timestamp())
+
+
+def normalize_utc_datetime(value: datetime | None) -> datetime | None:
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        return value
+    return value.astimezone(timezone.utc).replace(tzinfo=None)
+
+
+def abandon_games(games: list[Game]) -> int:
+    active_games = [game for game in games if game.status == "active"]
+    if not active_games:
+        return 0
+
+    finished_at = datetime.now(timezone.utc)
+    for game in active_games:
+        game.status = "abandoned"
+        game.finished_at = finished_at
+
+    db.session.commit()
+    return len(active_games)
+
+
+def abandon_active_games() -> int:
+    games = Game.query.filter_by(status="active").all()
+    return abandon_games(games)
+
+
+def abandon_expired_games(timeout_seconds: int = SESSION_IDLE_TIMEOUT_SECONDS) -> int:
+    threshold = normalize_utc_datetime(datetime.now(timezone.utc)) - timedelta(seconds=timeout_seconds)
+    stale_games: list[Game] = []
+
+    for game in Game.query.filter_by(status="active").all():
+        latest_turn = (
+            Turn.query.with_entities(Turn.created_at)
+            .filter_by(game_id=game.id)
+            .order_by(Turn.created_at.desc())
+            .first()
+        )
+        last_activity_at = latest_turn[0] if latest_turn else game.started_at
+        normalized_activity = normalize_utc_datetime(last_activity_at)
+        if normalized_activity and normalized_activity <= threshold:
+            stale_games.append(game)
+
+    return abandon_games(stale_games)
+
+
 def ensure_admin_user() -> None:
     username = os.getenv("APP_ADMIN_USERNAME", "admin").strip() or "admin"
     password = os.getenv("APP_ADMIN_PASSWORD", "admin")
@@ -153,6 +205,9 @@ def ensure_admin_user() -> None:
 def require_login():
     g.current_user = get_current_user()
 
+    if request.endpoint != "static":
+        abandon_expired_games()
+
     if app.config.get("TESTING"):
         return None
 
@@ -163,6 +218,22 @@ def require_login():
         return None
 
     if g.current_user:
+        raw_last_activity = session.get("last_activity_at")
+        try:
+            last_activity_at = int(raw_last_activity) if raw_last_activity is not None else None
+        except (TypeError, ValueError):
+            last_activity_at = None
+
+        now_ts = current_session_timestamp()
+        if last_activity_at is not None and now_ts - last_activity_at >= SESSION_IDLE_TIMEOUT_SECONDS:
+            abandon_active_games()
+            session.clear()
+            g.current_user = None
+            if request.path.startswith("/api/"):
+                return jsonify({"error": "Session expired due to inactivity."}), 401
+            return redirect(url_for("login"))
+
+        session["last_activity_at"] = now_ts
         return None
 
     if request.path.startswith("/api/"):
@@ -547,11 +618,14 @@ def login():
         return render_template("login.html", error="Invalid username or password."), 401
 
     session["user_id"] = user.id
+    session["last_activity_at"] = current_session_timestamp()
     return redirect(url_for("index"))
 
 
 @app.post("/logout")
 def logout():
+    if get_current_user():
+        abandon_active_games()
     session.clear()
     return redirect(url_for("login"))
 
