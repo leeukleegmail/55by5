@@ -394,7 +394,7 @@ function selectedGameName() {
 function updateHeroCopy(game) {
   if (!heroTitleEl || !heroSubtitleEl) return;
 
-  const activeGameType = game?.game_type || state.gameType;
+  const activeGameType = game && game.status === "active" ? game.game_type : null;
   if (activeGameType === "55by5") {
     heroTitleEl.textContent = "55 by 5";
     heroSubtitleEl.textContent = "Score in multiples of 5 and reach exactly 55 fives to win the game.";

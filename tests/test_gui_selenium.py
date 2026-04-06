@@ -277,6 +277,10 @@ def test_55_by_5_individual_game_can_complete_end_to_end(live_server, browser):
     assert browser.find_element(By.ID, "winner-name").text.strip() == "Finn"
     assert "Winner Finn" in browser.find_element(By.ID, "history-list").text
 
+    browser.find_element(By.ID, "winner-continue").click()
+    _wait(browser).until(lambda d: not d.find_element(By.ID, "winner-overlay").is_displayed())
+    _wait(browser).until(ec.text_to_be_present_in_element((By.ID, "hero-title"), "Set Up Your Darts Game"))
+
 
 
 def test_55_by_5_team_game_can_complete_end_to_end(live_server, browser):
@@ -490,6 +494,7 @@ def test_quit_requires_confirmation(live_server, browser):
 
     _wait(browser).until(ec.text_to_be_present_in_element((By.ID, "message"), "Game quit."))
     _wait(browser).until(lambda d: not d.find_element(By.ID, "live-panel").is_displayed())
+    _wait(browser).until(ec.text_to_be_present_in_element((By.ID, "hero-title"), "Set Up Your Darts Game"))
     assert browser.find_element(By.ID, "players-panel").is_displayed()
 
 
