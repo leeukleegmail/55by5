@@ -236,6 +236,15 @@ def test_api_requires_auth_when_not_testing(auth_client):
     assert res.get_json()["error"] == "Authentication required."
 
 
+def test_login_page_is_available_for_get_and_head(auth_client):
+    get_response = auth_client.get("/login")
+    assert get_response.status_code == 200
+    assert b"<form" in get_response.data
+
+    head_response = auth_client.head("/login")
+    assert head_response.status_code == 200
+
+
 def test_admin_login_can_create_user(auth_client):
     login = auth_client.post(
         "/login",

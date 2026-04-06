@@ -534,7 +534,7 @@ def index():
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
-    if request.method == "GET":
+    if request.method != "POST":
         if get_current_user() and not app.config.get("TESTING"):
             return redirect(url_for("index"))
         return render_template("login.html", error=None)

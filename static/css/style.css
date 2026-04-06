@@ -62,8 +62,14 @@ body {
 
 .user-bar-actions {
   display: flex;
-  align-items: center;
-  gap: 0.55rem;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.45rem;
+}
+
+.header-help-button,
+.logout-form button {
+  min-width: 6.25rem;
 }
 
 .logout-form {
@@ -767,6 +773,21 @@ td {
   }
 }
 
+@media (max-width: 720px) {
+  .user-bar {
+    align-items: flex-start;
+  }
+
+  .user-bar-actions {
+    width: 100%;
+    align-items: stretch;
+  }
+
+  .help-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
 .login-page {
   min-height: 100vh;
   display: grid;
@@ -801,6 +822,69 @@ td {
   color: #f6ead2;
   letter-spacing: 0.02em;
   text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+
+.help-card {
+  width: min(820px, 94vw);
+}
+
+.help-layout {
+  display: grid;
+  grid-template-columns: minmax(170px, 210px) 1fr;
+  gap: 1rem;
+  margin-top: 0.9rem;
+}
+
+.help-nav {
+  display: grid;
+  gap: 0.45rem;
+  align-content: start;
+}
+
+.help-nav-btn {
+  width: 100%;
+  text-align: left;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--line);
+}
+
+.help-nav-btn.active {
+  background: linear-gradient(135deg, rgba(212, 58, 58, 0.95), rgba(145, 28, 28, 0.95));
+  border-color: rgba(255, 255, 255, 0.28);
+}
+
+.help-content {
+  min-height: 260px;
+}
+
+.help-section {
+  display: none;
+}
+
+.help-section.active {
+  display: block;
+}
+
+.help-section h4 {
+  margin: 0 0 0.55rem;
+  font-size: 1.1rem;
+  color: #f6ead2;
+}
+
+.help-steps,
+.help-points {
+  margin: 0;
+  padding-left: 1.15rem;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.help-callout {
+  margin: 0.9rem 0 0;
+  padding: 0.7rem 0.8rem;
+  border-left: 4px solid #6bcb77;
+  background: rgba(107, 203, 119, 0.1);
+  border-radius: 8px;
 }
 
 .modal-overlay,

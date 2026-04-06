@@ -183,6 +183,23 @@ def test_active_game_hides_select_game_panel_and_change_game_button(live_server,
     assert not browser.find_element(By.ID, "game-selection-panel").is_displayed()
 
 
+def test_help_button_opens_user_manual_in_header(live_server, browser):
+    browser.get(live_server)
+
+    help_button = _wait(browser).until(ec.element_to_be_clickable((By.ID, "help-button")))
+    help_button.click()
+
+    manual = _wait(browser).until(ec.visibility_of_element_located((By.ID, "help-overlay")))
+    assert "User Manual" in manual.text
+    assert "Quick Start" in manual.text
+
+    browser.find_element(By.CSS_SELECTOR, "#help-nav [data-help-section='cricket']").click()
+    _wait(browser).until(
+        lambda d: "active" in d.find_element(By.CSS_SELECTOR, ".help-section[data-help-section='cricket']").get_attribute("class")
+    )
+    assert "Starting Roles" in browser.find_element(By.CSS_SELECTOR, ".help-section[data-help-section='cricket']").text
+
+
 def test_team_assignment_can_be_configured_before_choosing_game(live_server, browser):
     browser.get(live_server)
 

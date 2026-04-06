@@ -54,10 +54,21 @@ const currentUserEl = document.getElementById("current-user");
 const adminPanelEl = document.getElementById("admin-panel");
 const clearHistoryEl = document.getElementById("clear-history");
 const userAccountsListEl = document.getElementById("user-accounts-list");
+const helpButtonEl = document.getElementById("help-button");
+const helpOverlayEl = document.getElementById("help-overlay");
+const helpCloseEl = document.getElementById("help-close");
+const helpNavEl = document.getElementById("help-nav");
+const helpPrevEl = document.getElementById("help-prev");
+const helpNextEl = document.getElementById("help-next");
+const helpSections = Array.from(document.querySelectorAll(".help-section"));
+const helpSectionOrder = helpSections
+  .map((section) => section.getAttribute("data-help-section"))
+  .filter(Boolean);
 
 let bustBannerTimeoutId = null;
 let scoreWarningTimeoutId = null;
 let pendingTurnSubmission = Promise.resolve();
+let activeHelpSection = helpSectionOrder[0] || "quick-start";
 
 function showBustBanner(text) {
   if (!bustBannerEl) return;
@@ -169,6 +180,65 @@ function showWinnerOverlay(winnerName) {
 function showMessage(text, isError = false) {
   messageEl.textContent = text;
   messageEl.className = isError ? "message error" : "message";
+}
+
+function setHelpSection(sectionName) {
+  if (!helpSections.length) return;
+
+  const nextSection = helpSectionOrder.includes(sectionName)
+    ? sectionName
+    : helpSectionOrder[0];
+
+  if (!nextSection) return;
+  activeHelpSection = nextSection;
+
+  helpSections.forEach((section) => {
+    const isActive = section.getAttribute("data-help-section") === nextSection;
+    section.classList.toggle("active", isActive);
+  });
+
+  if (helpNavEl) {
+    helpNavEl.querySelectorAll("[data-help-section]").forEach((button) => {
+      const isActive = button.getAttribute("data-help-section") === nextSection;
+      button.classList.toggle("active", isActive);
+    });
+  }
+
+  const currentIndex = helpSectionOrder.indexOf(nextSection);
+  if (helpPrevEl) {
+    helpPrevEl.disabled = currentIndex <= 0;
+  }
+  if (helpNextEl) {
+    helpNextEl.textContent = currentIndex >= helpSectionOrder.length - 1 ? "Done" : "Next";
+  }
+}
+
+function openHelpOverlay(sectionName = activeHelpSection) {
+  if (!helpOverlayEl) return;
+  setHelpSection(sectionName);
+  helpOverlayEl.classList.add("visible");
+}
+
+function closeHelpOverlay() {
+  if (!helpOverlayEl) return;
+  helpOverlayEl.classList.remove("visible");
+}
+
+function stepHelpSection(direction) {
+  if (!helpSectionOrder.length) return;
+
+  const currentIndex = helpSectionOrder.indexOf(activeHelpSection);
+  const nextIndex = Math.min(
+    helpSectionOrder.length - 1,
+    Math.max(0, currentIndex + direction),
+  );
+
+  if (direction > 0 && nextIndex === currentIndex && currentIndex === helpSectionOrder.length - 1) {
+    closeHelpOverlay();
+    return;
+  }
+
+  setHelpSection(helpSectionOrder[nextIndex]);
 }
 
 function renderAdminUsers(users) {
@@ -1211,11 +1281,64 @@ async function init() {
   setupDragAndDrop();
   setupTeamDragAndDrop();
   await loadAuthUser();
+  setHelpSection(activeHelpSection);
 
   const choose55Btn = document.getElementById("choose-55by5");
   const chooseCricketBtn = document.getElementById("choose-english-cricket");
   const teamModeSoloEl = document.getElementById("team-mode-solo");
   const teamModeTeamsEl = document.getElementById("team-mode-teams");
+
+  if (helpButtonEl) {
+    helpButtonEl.addEventListener("click", () => {
+      openHelpOverlay();
+    });
+  }
+
+  if (helpCloseEl) {
+    helpCloseEl.addEventListener("click", () => {
+      closeHelpOverlay();
+    });
+  }
+
+  if (helpNavEl) {
+    helpNavEl.addEventListener("click", (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return;
+      const sectionButton = target.closest("[data-help-section]");
+      if (!(sectionButton instanceof HTMLElement)) return;
+      setHelpSection(sectionButton.getAttribute("data-help-section") || activeHelpSection);
+    });
+  }
+
+  if (helpPrevEl) {
+    helpPrevEl.addEventListener("click", () => {
+      stepHelpSection(-1);
+    });
+  }
+
+  if (helpNextEl) {
+    helpNextEl.addEventListener("click", () => {
+      stepHelpSection(1);
+    });
+  }
+
+  if (helpOverlayEl) {
+    helpOverlayEl.addEventListener("click", (event) => {
+      if (event.target === helpOverlayEl) {
+        closeHelpOverlay();
+      }
+    });
+  }
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    if (helpOverlayEl?.classList.contains("visible")) {
+      closeHelpOverlay();
+    }
+    if (cricketStartOverlayEl?.classList.contains("visible")) {
+      closeCricketStartOverlay();
+    }
+  });
 
   if (choose55Btn) {
     choose55Btn.addEventListener("click", async () => {

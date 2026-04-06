@@ -14,6 +14,9 @@
         <div class="user-bar">
           <span id="current-user"></span>
           <div class="user-bar-actions">
+            <button type="button" id="help-button" class="btn-ghost header-help-button" aria-haspopup="dialog" aria-controls="help-overlay">
+              Help
+            </button>
             <form action="/logout" method="post" class="logout-form">
               <button type="submit">Log out</button>
             </form>
@@ -161,6 +164,76 @@
 
     <div id="bust-banner" class="bust-banner" role="status" aria-live="polite"></div>
     <div id="score-warning-banner" class="score-warning-banner" role="status" aria-live="polite"></div>
+
+    <div id="help-overlay" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="help-title">
+      <div class="modal-card help-card">
+        <div class="panel-header">
+          <h3 id="help-title">User Manual</h3>
+          <button id="help-close" type="button" class="btn-ghost">Close</button>
+        </div>
+        <p class="hint">Use this guide for setup, scoring, and admin tools while you play.</p>
+
+        <div class="help-layout">
+          <nav id="help-nav" class="help-nav" aria-label="User manual sections">
+            <button type="button" class="help-nav-btn active" data-help-section="quick-start">Quick Start</button>
+            <button type="button" class="help-nav-btn" data-help-section="55by5">55 by 5</button>
+            <button type="button" class="help-nav-btn" data-help-section="cricket">English Cricket</button>
+            <button type="button" class="help-nav-btn" data-help-section="admin">Accounts & History</button>
+          </nav>
+
+          <div class="help-content">
+            <section class="help-section active" data-help-section="quick-start">
+              <h4>Quick Start</h4>
+              <ol class="help-steps">
+                <li>Add names in <strong>All Players</strong>.</li>
+                <li>Select who is playing and drag them into order.</li>
+                <li>Choose <strong>Individual</strong> or <strong>Teams</strong>.</li>
+                <li>Pick a game from <strong>Select Game</strong>.</li>
+                <li>Enter scores in <strong>Live Game</strong> and review <strong>Recent Games</strong>.</li>
+              </ol>
+              <p class="help-callout">Tip: only one active game can run at a time, so finish or quit the current match before starting another.</p>
+            </section>
+
+            <section class="help-section" data-help-section="55by5">
+              <h4>55 by 5</h4>
+              <ul class="help-points">
+                <li>Enter one total score for each turn.</li>
+                <li>Only totals divisible by <strong>5</strong> count.</li>
+                <li>Counted score is converted to <strong>fives</strong> (`total / 5`).</li>
+                <li>Hit exactly <strong>55</strong> fives to win; going over is a bust.</li>
+                <li>Use <strong>Undo</strong> to remove the latest turn if needed.</li>
+              </ul>
+            </section>
+
+            <section class="help-section" data-help-section="cricket">
+              <h4>English Cricket</h4>
+              <ul class="help-points">
+                <li>The <strong>Starting Roles</strong> popup lets Team A choose whether to <strong>Bat</strong> or <strong>Bowl</strong>.</li>
+                <li>The live view splits into a bowling panel and a batting panel.</li>
+                <li>For bowling, click the bull markers to record wicket marks, then submit the turn.</li>
+                <li>For batting, enter the total score; runs are counted from strong scoring turns.</li>
+                <li>In the chase, the panel shows <strong>Target</strong> and <strong>Remaining Runs</strong>.</li>
+              </ul>
+            </section>
+
+            <section class="help-section" data-help-section="admin">
+              <h4>Accounts &amp; History</h4>
+              <ul class="help-points">
+                <li>Admins can create users and reset passwords from <strong>User Administration</strong>.</li>
+                <li>The <strong>Clear History</strong> control is visible only to admins.</li>
+                <li>Finished matches remain in <strong>Recent Games</strong> for quick review.</li>
+                <li>Non-admin players can still score games normally after signing in.</li>
+              </ul>
+            </section>
+          </div>
+        </div>
+
+        <div class="modal-actions">
+          <button id="help-prev" type="button" class="btn-ghost">Previous</button>
+          <button id="help-next" type="button">Next</button>
+        </div>
+      </div>
+    </div>
 
     <div id="cricket-start-overlay" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="cricket-start-title">
       <div class="modal-card cricket-start-card">
