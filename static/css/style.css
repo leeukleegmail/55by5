@@ -190,7 +190,7 @@ body {
 
 .team-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 0.75rem;
   align-items: start;
   width: 100%;
@@ -198,6 +198,9 @@ body {
 }
 
 .team-column {
+  display: grid;
+  gap: 0.45rem;
+  align-content: start;
   min-width: 0;
 }
 
@@ -208,8 +211,10 @@ body {
 }
 
 .team-name-input {
+  display: block;
   width: 100%;
-  margin-bottom: 0.45rem;
+  min-width: 0;
+  margin: 0;
 }
 
 .team-list {
@@ -519,11 +524,13 @@ button:hover {
 }
 
 .shared-actions {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
+  position: relative;
+  display: flex;
   align-items: center;
+  justify-content: center;
   gap: 0.6rem;
   width: 100%;
+  min-height: 2.9rem;
   margin-top: 0.15rem;
 }
 
@@ -539,21 +546,24 @@ button:hover {
 }
 
 #cricket-undo-turn {
-  grid-column: 1;
-  justify-self: stretch;
-  width: min(100%, 720px);
-  min-height: 3rem;
-  padding: 0.55rem 1rem;
-  margin: 0 auto;
+  width: auto;
+  min-width: 7rem;
+  min-height: 2.9rem;
+  padding: 0.5rem 1.15rem;
+  margin: 0;
   background: #dbe8ff;
   color: #153f8b;
-  font-size: 1.55rem;
+  font-size: 1.5rem;
   font-weight: 700;
 }
 
 #quit-game {
-  grid-column: 1;
-  justify-self: end;
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  min-height: 2.9rem;
+  padding: 0.5rem 1.15rem;
   background: #7f1d1d;
 }
 
@@ -916,12 +926,16 @@ td {
   }
 
   .shared-actions {
-    grid-template-columns: 1fr;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
   }
 
   #cricket-undo-turn,
   #quit-game {
-    grid-column: auto;
+    position: static;
+    transform: none;
+    width: 100%;
     justify-self: stretch;
   }
 
