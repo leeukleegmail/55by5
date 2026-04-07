@@ -54,6 +54,7 @@ class Game(db.Model):
     game_type = db.Column(db.String(30), nullable=False, default="55by5")
     team_mode = db.Column(db.String(10), nullable=False, default="solo")
     team_assignments = db.Column(db.Text, nullable=True)
+    team_names = db.Column(db.Text, nullable=True)
     cricket_state = db.Column(db.Text, nullable=True)
     winner_team = db.Column(db.String(20), nullable=True)
     current_turn_position = db.Column(db.Integer, nullable=False, default=0)
@@ -248,6 +249,17 @@ TEAM_A = "team_a"
 TEAM_B = "team_b"
 
 
+def default_team_names() -> dict[str, str]:
+    return {TEAM_A: "Team A", TEAM_B: "Team B"}
+
+
+def normalize_team_name_value(raw_value: object, fallback: str) -> str:
+    if not isinstance(raw_value, str):
+        return fallback
+    cleaned = raw_value.strip()
+    return cleaned[:40] if cleaned else fallback
+
+
 def normalize_game_type(raw_type: str | None) -> str:
     game_type = (raw_type or "55by5").strip().lower()
     return "english_cricket" if game_type == "english_cricket" else "55by5"
@@ -322,6 +334,23 @@ def parse_team_assignments(raw_value: str | None) -> dict[int, str]:
     return result
 
 
+def parse_team_names(raw_value: str | None) -> dict[str, str]:
+    names = default_team_names()
+    if not raw_value:
+        return names
+
+    try:
+        decoded = json.loads(raw_value)
+    except (TypeError, ValueError):
+        return names
+    if not isinstance(decoded, dict):
+        return names
+
+    for team_key, fallback in names.items():
+        names[team_key] = normalize_team_name_value(decoded.get(team_key), fallback)
+    return names
+
+
 def parse_cricket_state(raw_value: str | None) -> dict:
     default_state = build_initial_cricket_state(TEAM_A)
     if not raw_value:
@@ -370,11 +399,12 @@ def parse_cricket_state(raw_value: str | None) -> dict:
     }
 
 
-def team_label(team_key: str | None) -> str | None:
+def team_label(team_key: str | None, team_names: dict[str, str] | None = None) -> str | None:
+    names = team_names or default_team_names()
     if team_key == TEAM_A:
-        return "Team A"
+        return names.get(TEAM_A, "Team A")
     if team_key == TEAM_B:
-        return "Team B"
+        return names.get(TEAM_B, "Team B")
     return None
 
 
@@ -515,6 +545,8 @@ def ensure_game_schema_columns() -> None:
         statements.append("ALTER TABLE games ADD COLUMN team_mode VARCHAR(10) NOT NULL DEFAULT 'solo'")
     if "team_assignments" not in existing_columns:
         statements.append("ALTER TABLE games ADD COLUMN team_assignments TEXT")
+    if "team_names" not in existing_columns:
+        statements.append("ALTER TABLE games ADD COLUMN team_names TEXT")
     if "cricket_state" not in existing_columns:
         statements.append("ALTER TABLE games ADD COLUMN cricket_state TEXT")
     if "winner_team" not in existing_columns:
@@ -546,6 +578,7 @@ def serialize_game_state(game: Game) -> dict:
     ordered_players = game_ordered_players(game.id)
     scores = game_scores_map(game.id)
     assignments = parse_team_assignments(game.team_assignments)
+    team_names = parse_team_names(game.team_names)
     cricket_state = parse_cricket_state(game.cricket_state)
     active_player_id = None
     if game.status == "active" and ordered_players:
@@ -565,7 +598,8 @@ def serialize_game_state(game: Game) -> dict:
         "game_type": game.game_type,
         "team_mode": game.team_mode,
         "winner_team": game.winner_team,
-        "winner_team_name": team_label(game.winner_team),
+        "winner_team_name": team_label(game.winner_team, team_names),
+        "team_names": team_names,
         "current_turn_position": game.current_turn_position,
         "active_player_id": active_player_id,
         "winner_player_id": game.winner_player_id,
@@ -828,6 +862,15 @@ def create_game():
         return jsonify({"error": "One or more players were not found."}), 400
 
     raw_assignments = payload.get("team_assignments") or {}
+    raw_team_names = payload.get("team_names") or {}
+    if raw_team_names and not isinstance(raw_team_names, dict):
+        return jsonify({"error": "team_names must be an object when team mode is teams."}), 400
+
+    team_names = default_team_names()
+    if isinstance(raw_team_names, dict):
+        for team_key, fallback in team_names.items():
+            team_names[team_key] = normalize_team_name_value(raw_team_names.get(team_key), fallback)
+
     normalized_assignments: dict[int, str] = {}
     if team_mode == "teams":
         if not isinstance(raw_assignments, dict):
@@ -871,6 +914,7 @@ def create_game():
         game_type=game_type,
         team_mode=team_mode,
         team_assignments=json.dumps({str(k): v for k, v in normalized_assignments.items()}) if normalized_assignments else None,
+        team_names=json.dumps(team_names) if team_mode == "teams" else None,
         cricket_state=cricket_state,
         current_turn_position=initial_turn_position,
     )
@@ -1004,7 +1048,7 @@ def games_history():
                 "game_type": game.game_type,
                 "team_mode": game.team_mode,
                 "winner_team": game.winner_team,
-                "winner_team_name": team_label(game.winner_team),
+                "winner_team_name": team_label(game.winner_team, parse_team_names(game.team_names)),
                 "winner_player_id": game.winner_player_id,
                 "winner_name": winner_name,
                 "started_at": now_iso(game.started_at),

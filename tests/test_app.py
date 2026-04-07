@@ -211,6 +211,25 @@ def test_quit_active_game(client):
     assert next_game.status_code == 201
 
 
+def test_team_games_preserve_custom_team_names(client):
+    alpha = add_player(client, "Alpha Team")
+    bravo = add_player(client, "Bravo Team")
+
+    created = client.post(
+        "/api/games",
+        json={
+            "ordered_player_ids": [alpha, bravo],
+            "team_mode": "teams",
+            "team_assignments": {str(alpha): "team_a", str(bravo): "team_b"},
+            "team_names": {"team_a": "Dragons", "team_b": "Sharks"},
+        },
+    )
+
+    assert created.status_code == 201
+    game = created.get_json()["game"]
+    assert game["team_names"] == {"team_a": "Dragons", "team_b": "Sharks"}
+
+
 def test_stale_active_game_is_abandoned_after_30_minutes(client_with_module):
     client, app_module = client_with_module
     p1 = add_player(client, "Stale Player")

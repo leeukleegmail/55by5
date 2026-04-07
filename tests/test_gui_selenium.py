@@ -165,6 +165,20 @@ def start_cricket_game(browser, first_player: str, second_player: str, starting_
     _wait(browser).until(ec.visibility_of_element_located((By.ID, "cricket-dashboard")))
 
 
+def submit_standard_score_with_keypad(browser, value: int):
+    keypad = _wait(browser).until(ec.visibility_of_element_located((By.ID, "standard-score-keypad")))
+    display = browser.find_element(By.ID, "turn-total")
+
+    existing_value = display.get_attribute("value") or ""
+    for _ in existing_value:
+        keypad.find_element(By.CSS_SELECTOR, "[data-keypad-action='backspace']").click()
+
+    for digit in str(value):
+        keypad.find_element(By.CSS_SELECTOR, f"[data-keypad-value='{digit}']").click()
+
+    keypad.find_element(By.CSS_SELECTOR, "[data-keypad-action='submit']").click()
+
+
 def test_start_game_shows_live_view(live_server, browser):
     browser.get(live_server)
     start_single_player_game(browser, "Alice")
@@ -181,6 +195,36 @@ def test_active_game_hides_select_game_panel_and_change_game_button(live_server,
 
     assert browser.find_elements(By.ID, "change-game") == []
     assert not browser.find_element(By.ID, "game-selection-panel").is_displayed()
+
+
+def test_55_by_5_onscreen_keypad_can_submit_a_score(live_server, browser):
+    browser.get(live_server)
+    start_single_player_game(browser, "Piper")
+
+    turn_total = browser.find_element(By.ID, "turn-total")
+    assert turn_total.get_attribute("readonly") is not None
+
+    keypad = _wait(browser).until(ec.visibility_of_element_located((By.ID, "standard-score-keypad")))
+    keypad.find_element(By.CSS_SELECTOR, "[data-keypad-value='7']").click()
+    keypad.find_element(By.CSS_SELECTOR, "[data-keypad-value='8']").click()
+    keypad.find_element(By.CSS_SELECTOR, "[data-keypad-action='backspace']").click()
+    keypad.find_element(By.CSS_SELECTOR, "[data-keypad-value='5']").click()
+    keypad.find_element(By.CSS_SELECTOR, "[data-keypad-action='submit']").click()
+
+    _wait(browser).until(ec.text_to_be_present_in_element((By.ID, "turns-list"), "#1 Piper: total 75"))
+    assert "15" in browser.find_element(By.ID, "scoreboard").text
+
+
+def test_english_cricket_batting_panel_shows_onscreen_keypad(live_server, browser):
+    browser.get(live_server)
+    start_cricket_game(browser, "Ivy", "Jules")
+
+    batting_panel = _wait(browser).until(ec.visibility_of_element_located((By.ID, "cricket-batting-panel")))
+    keypad = batting_panel.find_element(By.CSS_SELECTOR, ".score-keypad")
+
+    assert keypad.is_displayed()
+    assert keypad.find_element(By.CSS_SELECTOR, "[data-keypad-action='submit']").text.strip() == "Submit Score"
+    assert keypad.find_element(By.CSS_SELECTOR, "[data-keypad-action='no-score']").text.strip() == "No Score"
 
 
 def test_logout_during_active_game_prompts_for_confirmation(live_server, browser):
@@ -234,9 +278,52 @@ def test_team_assignment_can_be_configured_before_choosing_game(live_server, bro
     if not team_mode.is_selected():
         team_mode.click()
 
-    team_assignment = _wait(browser).until(ec.visibility_of_element_located((By.ID, "team-assignment")))
-    assert "Team A" in team_assignment.text
-    assert "Team B" in team_assignment.text
+    _wait(browser).until(ec.visibility_of_element_located((By.ID, "team-assignment")))
+    assert browser.find_element(By.ID, "team-a-name").get_attribute("value") == "Team A"
+    assert browser.find_element(By.ID, "team-b-name").get_attribute("value") == "Team B"
+
+
+def test_team_assignment_can_rename_teams(live_server, browser):
+    browser.get(live_server)
+
+    for player_name in ("Rhea", "Skye"):
+        add_player(browser, player_name)
+        player_checkbox = _wait(browser).until(
+            ec.presence_of_element_located(
+                (
+                    By.XPATH,
+                    f"//div[@id='selectable-players']//label[.//span[normalize-space()='{player_name}']]//input",
+                )
+            )
+        )
+        if not player_checkbox.is_selected():
+            player_checkbox.click()
+
+    team_mode = _wait(browser).until(ec.element_to_be_clickable((By.ID, "team-mode-teams")))
+    if not team_mode.is_selected():
+        team_mode.click()
+
+    _wait(browser).until(ec.visibility_of_element_located((By.ID, "team-assignment")))
+    team_a_name = browser.find_element(By.ID, "team-a-name")
+    team_b_name = browser.find_element(By.ID, "team-b-name")
+    team_a_name.clear()
+    team_a_name.send_keys("Red Arrows")
+    team_b_name.clear()
+    team_b_name.send_keys("Blue Rockets")
+
+    browser.find_element(By.ID, "choose-english-cricket").click()
+    popup = _wait(browser).until(ec.visibility_of_element_located((By.ID, "cricket-start-overlay")))
+
+    assert "Red Arrows Will" in popup.text
+
+    browser.find_element(By.ID, "cricket-start-game").click()
+    _wait(browser).until(ec.visibility_of_element_located((By.ID, "live-panel")))
+    browser.execute_script("window.confirm = function () { return true; };")
+    browser.find_element(By.ID, "quit-game").click()
+
+    _wait(browser).until(ec.visibility_of_element_located((By.ID, "team-a-name")))
+    assert browser.find_element(By.ID, "team-a-name").get_attribute("value") == "Team A"
+    assert browser.find_element(By.ID, "team-b-name").get_attribute("value") == "Team B"
 
 
 def test_start_without_players_shows_bust_style_error(live_server, browser):
@@ -279,10 +366,7 @@ def test_55_by_5_individual_game_can_complete_end_to_end(live_server, browser):
 
     turn_values = (75, 75, 75, 50)
     for turn_number, value in enumerate(turn_values, start=1):
-        turn_total = browser.find_element(By.ID, "turn-total")
-        turn_total.clear()
-        turn_total.send_keys(str(value))
-        browser.find_element(By.ID, "submit-turn").click()
+        submit_standard_score_with_keypad(browser, value)
         if turn_number < len(turn_values):
             _wait(browser).until(ec.text_to_be_present_in_element((By.ID, "turns-list"), f"#{turn_number} Finn: total {value}"))
 
@@ -335,10 +419,7 @@ def test_55_by_5_team_game_can_complete_end_to_end(live_server, browser):
 
     for turn_number, (player_name, value) in enumerate(scripted_turns, start=1):
         _wait(browser).until(ec.text_to_be_present_in_element((By.ID, "active-game-meta"), f"{player_name} to Throw"))
-        turn_total = browser.find_element(By.ID, "turn-total")
-        turn_total.clear()
-        turn_total.send_keys(str(value))
-        browser.find_element(By.ID, "submit-turn").click()
+        submit_standard_score_with_keypad(browser, value)
         if turn_number < len(scripted_turns):
             _wait(browser).until(ec.text_to_be_present_in_element((By.ID, "turns-list"), f"#{turn_number} {player_name}: total {value}"))
 
@@ -400,9 +481,8 @@ def test_submit_turn_updates_score_and_clears_input(live_server, browser):
     start_single_player_game(browser, "Bob")
 
     turn_total = browser.find_element(By.ID, "turn-total")
-    turn_total.clear()
-    turn_total.send_keys("15")
-    browser.find_element(By.ID, "submit-turn").click()
+    assert turn_total.get_attribute("readonly") is not None
+    submit_standard_score_with_keypad(browser, 15)
 
     _wait(browser).until(ec.text_to_be_present_in_element((By.ID, "scoreboard"), "3"))
     _wait(browser).until(lambda d: d.find_element(By.ID, "turn-total").get_attribute("value") == "")
@@ -423,9 +503,15 @@ def test_english_cricket_live_view_uses_two_panels(live_server, browser):
 
     assert "bowling side" in bowling_panel.text.lower()
     assert "batting side" in batting_panel.text.lower()
+    assert "this throw:" not in bowling_panel.text.lower()
+    assert "maximum 6 per throw" not in bowling_panel.text.lower()
+    assert "click any bull markers" not in bowling_panel.text.lower()
     assert len(browser.find_elements(By.CSS_SELECTOR, "#cricket-bowling-panel .bullseye-chip")) == 10
     assert not batting_input.is_enabled()
     assert "Jules to Throw" in browser.find_element(By.ID, "active-game-meta").text
+
+    cricket_undo = browser.find_element(By.ID, "cricket-undo-turn")
+    assert cricket_undo.is_displayed()
 
     bull_buttons = browser.find_elements(By.CSS_SELECTOR, "#cricket-bowling-panel .bullseye-chip:not([disabled])")
     assert len(bull_buttons) == 10
@@ -443,8 +529,12 @@ def test_english_cricket_live_view_uses_two_panels(live_server, browser):
     browser.find_element(By.ID, "cricket-submit-batting").click()
 
     _wait(browser).until(ec.text_to_be_present_in_element((By.ID, "active-game-meta"), "Jules to Throw"))
+    browser.find_element(By.ID, "cricket-undo-turn").click()
+
+    _wait(browser).until(ec.text_to_be_present_in_element((By.ID, "message"), "Last turn undone."))
+    _wait(browser).until(ec.text_to_be_present_in_element((By.ID, "active-game-meta"), "Ivy to Throw"))
     updated_bowling_panel = browser.find_element(By.ID, "cricket-bowling-panel")
-    assert "is-active" in updated_bowling_panel.get_attribute("class")
+    assert "is-inactive" in updated_bowling_panel.get_attribute("class")
 
 
 def test_english_cricket_shows_target_and_remaining_runs_in_second_innings(live_server, browser):
@@ -523,10 +613,7 @@ def test_bust_shows_red_banner_for_three_seconds(live_server, browser):
     turn_values = [75, 75, 75, 15, 15, 15, 15]
 
     for turn_number, value in enumerate(turn_values, start=1):
-        turn_total = browser.find_element(By.ID, "turn-total")
-        turn_total.clear()
-        turn_total.send_keys(str(value))
-        browser.find_element(By.ID, "submit-turn").click()
+        submit_standard_score_with_keypad(browser, value)
         _wait(browser).until(ec.text_to_be_present_in_element((By.ID, "turns-list"), f"#{turn_number} Dana: total {value}"))
 
     _wait(browser).until(ec.text_to_be_present_in_element((By.ID, "bust-banner"), "Dana bust!"))
@@ -540,10 +627,7 @@ def test_non_divisible_by_five_shows_popup_and_keeps_total(live_server, browser)
     browser.get(live_server)
     start_single_player_game(browser, "Eve")
 
-    turn_total = browser.find_element(By.ID, "turn-total")
-    turn_total.clear()
-    turn_total.send_keys("12")
-    browser.find_element(By.ID, "submit-turn").click()
+    submit_standard_score_with_keypad(browser, 12)
 
     _wait(browser).until(ec.text_to_be_present_in_element((By.ID, "score-warning-banner"), "Total scored must be divisible by 5."))
     _wait(browser).until(lambda d: "visible" in d.find_element(By.ID, "score-warning-banner").get_attribute("class"))

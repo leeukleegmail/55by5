@@ -6,6 +6,7 @@ const state = {
   gameType: null,
   teamMode: "solo",
   teamAssignments: {},
+  teamNames: { team_a: "Team A", team_b: "Team B" },
   cricketPendingMarks: 0,
   cricketSelectedMarks: [],
   cricketStartingBattingTeam: "team_a",
@@ -30,7 +31,8 @@ const historyListEl = document.getElementById("history-list");
 const turnInputEl = document.getElementById("turn-input");
 const standardTurnControlsEl = document.getElementById("standard-turn-controls");
 const sharedTurnActionsEl = document.querySelector(".shared-actions");
-const quickBoardEl = document.getElementById("quick-board");
+const cricketUndoTurnEl = document.getElementById("cricket-undo-turn");
+const standardScoreKeypadEl = document.getElementById("standard-score-keypad");
 const bullHitEl = document.getElementById("bull-hit");
 const selectedGameLabelEl = document.getElementById("selected-game-label");
 const teamAssignmentEl = document.getElementById("team-assignment");
@@ -41,6 +43,8 @@ const cricketStartGameEl = document.getElementById("cricket-start-game");
 const cricketStartCancelEl = document.getElementById("cricket-start-cancel");
 const teamAListEl = document.getElementById("team-a-list");
 const teamBListEl = document.getElementById("team-b-list");
+const teamANameInputEl = document.getElementById("team-a-name");
+const teamBNameInputEl = document.getElementById("team-b-name");
 const turnInputLabelEl = document.getElementById("turn-input-label");
 const cricketDashboardEl = document.getElementById("cricket-dashboard");
 const cricketBowlingPanelEl = document.getElementById("cricket-bowling-panel");
@@ -184,6 +188,129 @@ function showWinnerOverlay(winnerName) {
 function showMessage(text, isError = false) {
   messageEl.textContent = text;
   messageEl.className = isError ? "message error" : "message";
+}
+
+function createScoreKeypadMarkup({
+  submitButtonId,
+  submitLabel = "Submit Score",
+  noScoreButtonId,
+  noScoreLabel = "No Score",
+  disabled = false,
+  showUndo = true,
+}) {
+  const disabledAttr = disabled ? "disabled" : "";
+  const digitButtons = Array.from({ length: 9 }, (_, index) => {
+    const value = String(index + 1);
+    return `
+      <button type="button" class="score-key score-key--digit" data-keypad-value="${value}" ${disabledAttr}>${value}</button>
+    `;
+  }).join("");
+
+  const toolbarButtons = [
+    `<button type="button" class="score-key score-key--backspace" data-keypad-action="backspace" aria-label="Backspace" title="Backspace" ${disabledAttr}>⌫</button>`,
+    showUndo
+      ? `<button type="button" class="score-key score-key--undo" data-keypad-action="undo" aria-label="Undo last turn" title="Undo last turn" ${disabledAttr}>↺</button>`
+      : "",
+  ].join("");
+
+  return `
+    <div class="score-keypad-toolbar${showUndo ? "" : " score-keypad-toolbar--single"}">
+      ${toolbarButtons}
+    </div>
+    ${digitButtons}
+    <button id="${noScoreButtonId}" type="button" class="score-key score-key--danger" data-keypad-action="no-score" ${disabledAttr}>${noScoreLabel}</button>
+    <button type="button" class="score-key score-key--digit score-key--zero" data-keypad-value="0" ${disabledAttr}>0</button>
+    <button id="${submitButtonId}" type="button" class="score-key score-key--submit" data-keypad-action="submit" ${disabledAttr}>${submitLabel}</button>
+  `;
+}
+
+function renderStandardScoreKeypad() {
+  if (!standardScoreKeypadEl) return;
+  standardScoreKeypadEl.innerHTML = createScoreKeypadMarkup({
+    submitButtonId: "submit-turn",
+    noScoreButtonId: "no-score",
+  });
+}
+
+function appendDigitToScoreInput(input, digit) {
+  if (!(input instanceof HTMLInputElement) || input.disabled) return;
+  const currentValue = input.value === "0" ? "" : input.value.trim();
+  input.value = `${currentValue}${digit}`.slice(0, 3);
+  input.focus();
+}
+
+async function undoLastTurn() {
+  if (!state.game || state.game.status !== "active") return;
+  try {
+    const response = await api(`/api/games/${state.game.id}/turn`, { method: "DELETE" });
+    state.game = response.game;
+    renderGame();
+    await loadHistory();
+    showMessage("Last turn undone.");
+  } catch (err) {
+    showMessage(err.message, true);
+  }
+}
+
+function setupScoreKeypad() {
+  renderStandardScoreKeypad();
+
+  document.addEventListener("click", async (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+
+    const button = target.closest(".score-key");
+    if (!(button instanceof HTMLButtonElement)) return;
+
+    const keypad = button.closest(".score-keypad");
+    if (!(keypad instanceof HTMLElement) || button.disabled) return;
+
+    const targetId = keypad.getAttribute("data-keypad-target");
+    const input = targetId ? document.getElementById(targetId) : null;
+    const digit = button.getAttribute("data-keypad-value");
+
+    if (digit !== null) {
+      appendDigitToScoreInput(input, digit);
+      return;
+    }
+
+    const action = button.getAttribute("data-keypad-action");
+    if (action === "backspace") {
+      if (input instanceof HTMLInputElement) {
+        input.value = input.value.slice(0, -1);
+        input.focus();
+      }
+      return;
+    }
+
+    if (action === "undo") {
+      await undoLastTurn();
+      return;
+    }
+
+    if (action === "no-score") {
+      if (input instanceof HTMLInputElement) {
+        input.value = "0";
+      }
+      await submitScore(0);
+      return;
+    }
+
+    if (action === "submit") {
+      const total = Number(input instanceof HTMLInputElement ? input.value : 0);
+      await submitScore(total);
+    }
+  });
+
+  const turnTotalInput = document.getElementById("turn-total");
+  if (turnTotalInput) {
+    turnTotalInput.addEventListener("keydown", async (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        await submitScore(Number(turnTotalInput.value || 0));
+      }
+    });
+  }
 }
 
 function confirmLogoutIfNeeded() {
@@ -346,6 +473,7 @@ async function submitScore(totalPoints) {
 
       if (response.game.status === "finished") {
         state.gameType = null;
+        resetTeamNames();
       }
 
       renderGame();
@@ -466,6 +594,30 @@ function getTeamMode() {
   return checked.value === "teams" ? "teams" : "solo";
 }
 
+function normalizeTeamNames(rawNames = {}) {
+  const names = rawNames && typeof rawNames === "object" ? rawNames : {};
+  const fallback = { team_a: "Team A", team_b: "Team B" };
+  return {
+    team_a: typeof names.team_a === "string" && names.team_a.trim() ? names.team_a.trim().slice(0, 40) : fallback.team_a,
+    team_b: typeof names.team_b === "string" && names.team_b.trim() ? names.team_b.trim().slice(0, 40) : fallback.team_b,
+  };
+}
+
+function resetTeamNames() {
+  state.teamNames = normalizeTeamNames();
+  if (teamANameInputEl) {
+    teamANameInputEl.value = state.teamNames.team_a;
+  }
+  if (teamBNameInputEl) {
+    teamBNameInputEl.value = state.teamNames.team_b;
+  }
+}
+
+function teamDisplayName(teamKey, rawNames = state.teamNames) {
+  const names = normalizeTeamNames(rawNames);
+  return teamKey === "team_b" ? names.team_b : names.team_a;
+}
+
 function oppositeTeam(teamKey) {
   return teamKey === "team_b" ? "team_a" : "team_b";
 }
@@ -491,11 +643,13 @@ function getCricketStartContext() {
       };
     }
 
+    const teamALabel = teamDisplayName("team_a");
+    const teamBLabel = teamDisplayName("team_b");
     return {
       canStart: true,
-      teamALabel: "Team A",
-      teamBLabel: "Team B",
-      chooserLabel: "Team A Will",
+      teamALabel,
+      teamBLabel,
+      chooserLabel: `${teamALabel} Will`,
     };
   }
 
@@ -660,6 +814,13 @@ function updateOrderFromTeamLists() {
 function renderTeamAssignment() {
   if (!teamAssignmentEl || !teamAListEl || !teamBListEl) return;
   const show = state.teamMode === "teams";
+  state.teamNames = normalizeTeamNames(state.teamNames);
+  if (teamANameInputEl) {
+    teamANameInputEl.value = state.teamNames.team_a;
+  }
+  if (teamBNameInputEl) {
+    teamBNameInputEl.value = state.teamNames.team_b;
+  }
   teamAssignmentEl.classList.toggle("hidden", !show);
   if (orderSectionEl) {
     orderSectionEl.classList.toggle("hidden", show);
@@ -801,22 +962,6 @@ function setupDragAndDrop() {
   });
 }
 
-function renderQuickBoard() {
-  const values = [5, 10, 15, 20, 25, 30, 40, 45, 50, 60, 75, 100];
-  quickBoardEl.innerHTML = "";
-  values.forEach((value) => {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.textContent = String(value);
-    button.addEventListener("click", async () => {
-      const input = document.getElementById("turn-total");
-      input.value = String(value);
-      await submitScore(value);
-    });
-    quickBoardEl.appendChild(button);
-  });
-}
-
 function groupPlayersByTeam(players) {
   return {
     team_a: players.filter((player) => player.team === "team_a"),
@@ -828,7 +973,7 @@ function groupPlayersByTeam(players) {
 function getCricketTeamInfo(game, teamKey, grouped, fallbackStart = 0) {
   const fallbackMembers = grouped.unassigned.slice(fallbackStart, fallbackStart + 1);
   const members = grouped[teamKey].length ? grouped[teamKey] : fallbackMembers;
-  const teamName = teamKey === "team_b" ? "Team B" : "Team A";
+  const teamName = teamDisplayName(teamKey, game.team_names);
   const memberNames = members.map((player) => player.name).join(", ") || "No players selected";
   return {
     key: teamKey,
@@ -866,7 +1011,8 @@ function renderStandardScoreboard(game) {
   const players = [...game.players];
   if (game.team_mode === "teams") {
     const grouped = groupPlayersByTeam(players);
-    for (const [teamKey, label] of [["team_a", "Team A"], ["team_b", "Team B"]]) {
+    for (const teamKey of ["team_a", "team_b"]) {
+      const label = teamDisplayName(teamKey, game.team_names);
       const members = grouped[teamKey];
       if (!members.length) continue;
       const teamRow = document.createElement("tr");
@@ -920,8 +1066,6 @@ function renderCricketDashboard(game) {
   const runs = cs.runs || {};
   const battingRuns = runs[battingTeam] || 0;
   const completedMarks = wickets[bowlingTeam] || 0;
-  const remainingMarks = Math.max(10 - completedMarks, 0);
-  const maxPerThrow = Math.min(6, remainingMarks);
   const targetRuns = cs.inning === 2 ? (runs[bowlingTeam] || 0) + 1 : null;
   const remainingRuns = targetRuns === null ? null : Math.max(targetRuns - battingRuns, 0);
 
@@ -965,17 +1109,8 @@ function renderCricketDashboard(game) {
         <strong>${completedMarks} / 10</strong>
       </div>
     </div>
-    <p class="cricket-panel-note">
-      ${isBowlingTurn
-        ? `${activePlayer?.name || bowlingInfo.title} is bowling. Click any bull markers hit this throw in any order, then submit the total.`
-        : `${battingInfo.title} is currently at the oche.`}
-    </p>
     <div class="cricket-bull-grid" aria-label="Bowling wicket tracker">
       ${bullMarkup}
-    </div>
-    <div class="cricket-selection-row">
-      <strong>This throw: ${state.cricketPendingMarks} selected</strong>
-      <span>Maximum 6 per throw • ${remainingMarks} wicket mark${remainingMarks === 1 ? "" : "s"} remaining</span>
     </div>
     <div class="cricket-panel-actions">
       <button id="cricket-submit-bowling" type="button" ${isBowlingTurn ? "" : "disabled"}>Submit Bull Hits</button>
@@ -1006,13 +1141,24 @@ function renderCricketDashboard(game) {
         `}
       </div>
     </div>
-    <label class="cricket-entry-field" for="cricket-batting-total">
-      <span>Score</span>
-      <input id="cricket-batting-total" type="number" min="0" max="180" value="" ${isBattingTurn ? "" : "disabled"} />
-    </label>
-    <div class="cricket-panel-actions">
-      <button id="cricket-submit-batting" type="button" ${isBattingTurn ? "" : "disabled"}>Submit Score</button>
-      <button id="cricket-no-score" type="button" ${isBattingTurn ? "" : "disabled"}>No Score</button>
+    <div class="cricket-entry-stack">
+      <label class="cricket-entry-field" for="cricket-batting-total">
+        <span>Score</span>
+        <input id="cricket-batting-total" type="number" inputmode="numeric" min="0" max="180" value="" ${isBattingTurn ? "" : "disabled"} />
+      </label>
+      <div
+        id="cricket-batting-keypad"
+        class="score-keypad cricket-score-keypad"
+        data-keypad-target="cricket-batting-total"
+        aria-label="Cricket batting keypad"
+      >
+        ${createScoreKeypadMarkup({
+          submitButtonId: "cricket-submit-batting",
+          noScoreButtonId: "cricket-no-score",
+          disabled: !isBattingTurn,
+          showUndo: false,
+        })}
+      </div>
     </div>
   `;
 
@@ -1048,36 +1194,12 @@ function renderCricketDashboard(game) {
   }
 
   const battingInput = document.getElementById("cricket-batting-total");
-  const submitBattingBtn = document.getElementById("cricket-submit-batting");
-  const battingSubmit = async () => {
-    const total = Number(battingInput?.value || 0);
-    const hiddenInput = document.getElementById("turn-total");
-    if (hiddenInput) {
-      hiddenInput.value = String(total);
-    }
-    await submitScore(total);
-  };
-
   if (battingInput) {
     battingInput.addEventListener("keydown", async (event) => {
       if (event.key === "Enter") {
         event.preventDefault();
-        await battingSubmit();
+        await submitScore(Number(battingInput.value || 0));
       }
-    });
-  }
-
-  if (submitBattingBtn) {
-    submitBattingBtn.addEventListener("click", battingSubmit);
-  }
-
-  const noScoreBtn = document.getElementById("cricket-no-score");
-  if (noScoreBtn) {
-    noScoreBtn.addEventListener("click", async () => {
-      if (battingInput) {
-        battingInput.value = "0";
-      }
-      await submitScore(0);
     });
   }
 }
@@ -1125,6 +1247,11 @@ function renderGame() {
   applyLayoutMode(game);
 
   if (!game) {
+    resetTeamNames();
+    if (cricketUndoTurnEl) {
+      cricketUndoTurnEl.classList.add("hidden");
+      cricketUndoTurnEl.disabled = true;
+    }
     activeGameMetaEl.textContent = "No active game.";
     scoreboardEl.innerHTML = "";
     turnsListEl.innerHTML = "";
@@ -1154,6 +1281,11 @@ function renderGame() {
   }
   if (sharedTurnActionsEl) {
     sharedTurnActionsEl.classList.toggle("hidden", game.status !== "active");
+  }
+  if (cricketUndoTurnEl) {
+    const showCricketUndo = isCricket && game.status === "active";
+    cricketUndoTurnEl.classList.toggle("hidden", !showCricketUndo);
+    cricketUndoTurnEl.disabled = !showCricketUndo || !game.turns.length;
   }
   if (cricketDashboardEl) {
     cricketDashboardEl.classList.toggle("hidden", !isCricket);
@@ -1230,6 +1362,7 @@ async function loadActiveGame() {
     state.gameType = state.game.game_type || "55by5";
     state.teamMode = state.game.team_mode || "solo";
     state.teamAssignments = state.game.team_assignments || {};
+    state.teamNames = normalizeTeamNames(state.game.team_names);
     state.cricketStartingBattingTeam = state.game.cricket_state?.starting_batting_team || state.game.cricket_state?.batting_team || "team_a";
   }
   renderGame();
@@ -1310,6 +1443,7 @@ async function startConfiguredGame() {
       game_type: state.gameType,
       team_mode: state.teamMode,
       team_assignments: teamAssignments,
+      team_names: state.teamMode === "teams" ? normalizeTeamNames(state.teamNames) : undefined,
       starting_batting_team: state.gameType === "english_cricket" ? state.cricketStartingBattingTeam : undefined,
     }),
   });
@@ -1317,6 +1451,7 @@ async function startConfiguredGame() {
   state.gameType = response.game.game_type;
   state.teamMode = response.game.team_mode || "solo";
   state.teamAssignments = response.game.team_assignments || {};
+  state.teamNames = normalizeTeamNames(response.game.team_names);
   state.cricketStartingBattingTeam = response.game.cricket_state?.starting_batting_team || state.cricketStartingBattingTeam;
   renderGame();
   await loadHistory();
@@ -1324,7 +1459,8 @@ async function startConfiguredGame() {
 }
 
 async function init() {
-  renderQuickBoard();
+  resetTeamNames();
+  setupScoreKeypad();
   setupDragAndDrop();
   setupTeamDragAndDrop();
   await loadAuthUser();
@@ -1454,6 +1590,25 @@ async function init() {
     });
   }
 
+  for (const [inputEl, teamKey] of [[teamANameInputEl, "team_a"], [teamBNameInputEl, "team_b"]]) {
+    if (!(inputEl instanceof HTMLInputElement)) continue;
+    inputEl.addEventListener("input", () => {
+      state.teamNames = {
+        ...normalizeTeamNames(state.teamNames),
+        [teamKey]: inputEl.value.trim().slice(0, 40) || teamDisplayName(teamKey),
+      };
+      renderCricketRoleSelection();
+    });
+    inputEl.addEventListener("blur", () => {
+      state.teamNames = normalizeTeamNames({
+        ...state.teamNames,
+        [teamKey]: inputEl.value,
+      });
+      inputEl.value = teamDisplayName(teamKey);
+      renderCricketRoleSelection();
+    });
+  }
+
   document.getElementById("player-form").addEventListener("submit", async (event) => {
     event.preventDefault();
     try {
@@ -1566,16 +1721,6 @@ async function init() {
     });
   }
 
-  document.getElementById("submit-turn").addEventListener("click", async () => {
-    const totalPoints = Number(document.getElementById("turn-total").value);
-    await submitScore(totalPoints);
-  });
-
-  document.getElementById("no-score").addEventListener("click", async () => {
-    document.getElementById("turn-total").value = "0";
-    await submitScore(0);
-  });
-
   if (bullHitEl) {
     bullHitEl.addEventListener("click", async () => {
       document.getElementById("turn-total").value = "1";
@@ -1583,18 +1728,11 @@ async function init() {
     });
   }
 
-  document.getElementById("undo-turn").addEventListener("click", async () => {
-    if (!state.game || state.game.status !== "active") return;
-    try {
-      const response = await api(`/api/games/${state.game.id}/turn`, { method: "DELETE" });
-      state.game = response.game;
-      renderGame();
-      await loadHistory();
-      showMessage("Last turn undone.");
-    } catch (err) {
-      showMessage(err.message, true);
-    }
-  });
+  if (cricketUndoTurnEl) {
+    cricketUndoTurnEl.addEventListener("click", async () => {
+      await undoLastTurn();
+    });
+  }
 
   document.getElementById("quit-game").addEventListener("click", async () => {
     if (!state.game || state.game.status !== "active") return;
