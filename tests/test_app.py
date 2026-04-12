@@ -761,6 +761,28 @@ def test_create_english_cricket_solo_mode(client):
     assert game["active_player_id"] == p2
 
 
+def test_create_noughts_and_crosses_solo_mode(client):
+    p1 = add_player(client, "Noughts A")
+    p2 = add_player(client, "Noughts B")
+
+    res = client.post(
+        "/api/games",
+        json={
+            "ordered_player_ids": [p1, p2],
+            "game_type": "noughts_and_crosses",
+            "team_mode": "solo",
+        },
+    )
+    assert res.status_code == 201
+    game = res.get_json()["game"]
+    assert game["game_type"] == "noughts_and_crosses"
+    assert game["team_mode"] == "solo"
+    assert game["active_player_id"] == p1
+    assert len(game["noughts_and_crosses_state"]["cells"]) == 9
+    assert game["noughts_and_crosses_state"]["cells"][4]["label"] == "Bullseye"
+    assert game["noughts_and_crosses_state"]["cells"][0]["mark"] is None
+
+
 def test_create_english_cricket_can_choose_starting_batting_team(client):
     p1 = add_player(client, "Cricket C")
     p2 = add_player(client, "Cricket D")
@@ -859,6 +881,43 @@ def test_english_cricket_second_innings_chase_finishes_immediately(client):
     assert state["status"] == "finished"
     assert state["winner_team"] == "team_b"
     assert state["cricket_state"]["runs"]["team_b"] == 11
+
+
+def test_noughts_and_crosses_marks_board_and_finishes_on_three_in_a_row(client):
+    p1 = add_player(client, "Crosses")
+    p2 = add_player(client, "Noughts")
+
+    game = client.post(
+        "/api/games",
+        json={
+            "ordered_player_ids": [p1, p2],
+            "game_type": "noughts_and_crosses",
+            "team_mode": "solo",
+        },
+    ).get_json()["game"]
+
+    moves = [
+        (p1, 0, "X"),
+        (p2, 3, "O"),
+        (p1, 1, "X"),
+        (p2, 4, "O"),
+        (p1, 2, "X"),
+    ]
+
+    latest = None
+    for player_id, cell_index, marker in moves:
+        latest = client.post(
+            f"/api/games/{game['id']}/turn",
+            json={"player_id": player_id, "total_points": cell_index, "noughts_marker": marker},
+        )
+        assert latest.status_code == 200
+
+    payload = latest.get_json()
+    cells = payload["game"]["noughts_and_crosses_state"]["cells"]
+    assert [cells[index]["mark"] for index in (0, 1, 2)] == ["X", "X", "X"]
+    assert payload["game"]["status"] == "finished"
+    assert payload["game"]["winner_player_id"] == p1
+    assert payload["game"]["noughts_and_crosses_state"]["winning_line"] == [0, 1, 2]
 
 
 def test_55by5_team_mode_winner(client):

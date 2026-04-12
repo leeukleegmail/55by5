@@ -668,10 +668,21 @@ td {
 
 .cricket-role-tag {
   margin: 0;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
   font-size: 0.75rem;
   color: #ffd93d;
+}
+
+.cricket-role-label {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.cricket-role-value {
+  text-transform: none;
+  letter-spacing: normal;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #f6ead2;
 }
 
 .cricket-score-group {
@@ -844,6 +855,115 @@ td {
   gap: 0.5rem;
 }
 
+.noughts-dashboard {
+  display: grid;
+  gap: 1rem;
+  margin-top: 0.35rem;
+}
+
+.noughts-status-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 1.2fr) minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: stretch;
+}
+
+.noughts-side-pill,
+.noughts-status-copy {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 0.85rem 0.95rem;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.noughts-side-pill {
+  display: grid;
+  gap: 0.2rem;
+  justify-items: center;
+  text-align: center;
+}
+
+.noughts-side-pill strong {
+  font-size: 1.4rem;
+}
+
+.noughts-side-pill-x strong {
+  color: #ff8b8b;
+}
+
+.noughts-side-pill-o strong {
+  color: #8dd6ff;
+}
+
+.noughts-side-pill.is-active {
+  border-color: rgba(255, 217, 61, 0.78);
+  box-shadow: 0 0 0 1px rgba(255, 217, 61, 0.2), 0 0 20px rgba(255, 217, 61, 0.12);
+}
+
+.noughts-status-copy {
+  display: grid;
+  place-items: center;
+  text-align: center;
+  font-weight: 700;
+  color: #f6ead2;
+}
+
+.noughts-board {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.noughts-cell {
+  min-height: 118px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.08), rgba(0, 0, 0, 0.22));
+  color: #fff;
+  display: grid;
+  gap: 0.4rem;
+  align-content: space-between;
+  text-align: left;
+  padding: 0.75rem;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.noughts-cell:not(:disabled):hover {
+  transform: translateY(-1px);
+  border-color: rgba(255, 217, 61, 0.5);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.24);
+}
+
+.noughts-cell:disabled {
+  cursor: default;
+}
+
+.noughts-cell-label {
+  font-size: 0.82rem;
+  line-height: 1.25;
+  color: #ddd8cf;
+}
+
+.noughts-cell-mark {
+  font-size: clamp(1.8rem, 5vw, 2.6rem);
+  font-weight: 800;
+  line-height: 1;
+  min-height: 1em;
+}
+
+.noughts-cell.is-x .noughts-cell-mark {
+  color: #ff8b8b;
+}
+
+.noughts-cell.is-o .noughts-cell-mark {
+  color: #8dd6ff;
+}
+
+.noughts-cell.is-winning {
+  border-color: rgba(255, 217, 61, 0.85);
+  box-shadow: 0 0 0 1px rgba(255, 217, 61, 0.25), 0 0 24px rgba(255, 217, 61, 0.18);
+}
+
 #bull-hit {
   background: #1f7f4d;
 }
@@ -929,6 +1049,11 @@ td {
     grid-template-columns: 1fr;
   }
 
+  .noughts-status-card,
+  .noughts-mark-options {
+    grid-template-columns: 1fr;
+  }
+
   .standard-entry-panel {
     width: 100%;
   }
@@ -971,6 +1096,14 @@ td {
   .cricket-selection-row {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .noughts-board {
+    gap: 0.55rem;
+  }
+
+  .noughts-cell {
+    min-height: 96px;
   }
 }
 
@@ -1122,6 +1255,32 @@ td {
   font-size: 1.05rem;
   font-weight: 700;
   color: #f6ead2;
+}
+
+.noughts-mark-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.noughts-mark-choice {
+  min-height: 96px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  display: grid;
+  gap: 0.2rem;
+  place-items: center;
+}
+
+.noughts-mark-choice strong {
+  font-size: 1.8rem;
+}
+
+.noughts-mark-choice.is-default {
+  border-color: rgba(255, 217, 61, 0.7);
+  box-shadow: 0 0 0 1px rgba(255, 217, 61, 0.2);
 }
 
 .modal-actions {

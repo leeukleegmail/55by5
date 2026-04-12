@@ -165,6 +165,27 @@ def start_cricket_game(browser, first_player: str, second_player: str, starting_
     _wait(browser).until(ec.visibility_of_element_located((By.ID, "cricket-dashboard")))
 
 
+def start_noughts_game(browser, first_player: str, second_player: str):
+    _wait(browser).until(ec.visibility_of_element_located((By.ID, "setup-panel")))
+
+    for player_name in (first_player, second_player):
+        add_player(browser, player_name)
+        player_checkbox = _wait(browser).until(
+            ec.presence_of_element_located(
+                (
+                    By.XPATH,
+                    f"//div[@id='selectable-players']//label[.//span[normalize-space()='{player_name}']]//input",
+                )
+            )
+        )
+        if not player_checkbox.is_selected():
+            player_checkbox.click()
+
+    _wait(browser).until(ec.element_to_be_clickable((By.ID, "choose-noughts-and-crosses"))).click()
+    _wait(browser).until(ec.visibility_of_element_located((By.ID, "live-panel")))
+    _wait(browser).until(ec.visibility_of_element_located((By.ID, "noughts-dashboard")))
+
+
 def submit_standard_score_with_keypad(browser, value: int):
     keypad = _wait(browser).until(ec.visibility_of_element_located((By.ID, "standard-score-keypad")))
     display = browser.find_element(By.ID, "turn-total")
@@ -225,6 +246,27 @@ def test_english_cricket_batting_panel_shows_onscreen_keypad(live_server, browse
     assert keypad.is_displayed()
     assert keypad.find_element(By.CSS_SELECTOR, "[data-keypad-action='submit']").text.strip() == "Submit Score"
     assert keypad.find_element(By.CSS_SELECTOR, "[data-keypad-action='no-score']").text.strip() == "No Score"
+
+
+def test_noughts_and_crosses_board_allows_marking_x_and_o(live_server, browser):
+    browser.get(live_server)
+    start_noughts_game(browser, "Nina", "Otis")
+
+    board = _wait(browser).until(ec.visibility_of_element_located((By.ID, "noughts-dashboard")))
+    squares = board.find_elements(By.CSS_SELECTOR, "[data-board-index]")
+    assert len(squares) == 9
+    assert "Bullseye" in squares[4].text
+
+    squares[0].click()
+    chooser = _wait(browser).until(ec.visibility_of_element_located((By.ID, "noughts-mark-overlay")))
+    chooser.find_element(By.CSS_SELECTOR, "[data-noughts-mark='X']").click()
+    _wait(browser).until(lambda d: "X" in d.find_elements(By.CSS_SELECTOR, "[data-board-index]")[0].text)
+
+    squares = board.find_elements(By.CSS_SELECTOR, "[data-board-index]")
+    squares[1].click()
+    chooser = _wait(browser).until(ec.visibility_of_element_located((By.ID, "noughts-mark-overlay")))
+    chooser.find_element(By.CSS_SELECTOR, "[data-noughts-mark='O']").click()
+    _wait(browser).until(lambda d: "O" in d.find_elements(By.CSS_SELECTOR, "[data-board-index]")[1].text)
 
 
 def test_logout_during_active_game_prompts_for_confirmation(live_server, browser):

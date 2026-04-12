@@ -96,6 +96,7 @@
         <div class="mode-buttons">
           <button type="button" id="choose-55by5" class="mode-btn">55 by 5</button>
           <button type="button" id="choose-english-cricket" class="mode-btn">English Cricket</button>
+          <button type="button" id="choose-noughts-and-crosses" class="mode-btn">Noughts and Crosses</button>
         </div>
       </section>
 
@@ -137,6 +138,8 @@
             <section id="cricket-bowling-panel" class="cricket-side-panel"></section>
             <section id="cricket-batting-panel" class="cricket-side-panel"></section>
           </div>
+
+          <div id="noughts-dashboard" class="noughts-dashboard hidden"></div>
 
           <div class="turn-actions shared-actions">
             <button id="cricket-undo-turn" type="button" class="hidden" aria-label="Undo last turn" title="Undo last turn">↺</button>
@@ -240,6 +243,17 @@
         <div class="modal-actions">
           <button id="cricket-start-cancel" type="button" class="btn-ghost">Cancel</button>
           <button id="cricket-start-game" type="button">Start Game</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="noughts-mark-overlay" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="noughts-mark-title">
+      <div class="modal-card noughts-mark-card">
+        <h3 id="noughts-mark-title">Claim Square</h3>
+        <p id="noughts-mark-prompt" class="hint">Assign this square to:</p>
+        <div id="noughts-mark-options" class="noughts-mark-options"></div>
+        <div class="modal-actions">
+          <button id="noughts-mark-cancel" type="button" class="btn-ghost">Cancel</button>
         </div>
       </div>
     </div>
