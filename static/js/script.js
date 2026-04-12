@@ -484,7 +484,7 @@ async function submitScore(totalPoints) {
       await loadHistory();
 
       if (response.game.status === "finished") {
-        const winnerName = response.game.winner_team_name || response.game.players.find((p) => p.id === response.game.winner_player_id)?.name || "Tie";
+        const winnerName = winnerDisplayName(response.game, "Tie");
         showWinnerOverlay(winnerName);
         return;
       }
@@ -555,7 +555,7 @@ async function submitNoughtsMove(cellIndex, marker) {
       await loadHistory();
 
       if (response.game.status === "finished") {
-        const winnerName = response.game.winner_team_name || response.game.players.find((p) => p.id === response.game.winner_player_id)?.name || "Tie";
+        const winnerName = winnerDisplayName(response.game, "Tie");
         showWinnerOverlay(winnerName);
         return;
       }
@@ -702,6 +702,24 @@ function teamInitialsLabel(teamName, members) {
   return `${teamName} (${initials})`;
 }
 
+function winnerDisplayName(game, fallback = "Tie") {
+  if (!game) return fallback;
+  const baseWinnerName = game.winner_team_name || game.players.find((p) => p.id === game.winner_player_id)?.name || fallback;
+  if (game.team_mode !== "teams" || !game.winner_team) {
+    return baseWinnerName;
+  }
+
+  const grouped = groupPlayersByTeam([...(game.players || [])]);
+  const members = game.winner_team === "team_b" ? grouped.team_b : grouped.team_a;
+  return teamInitialsLabel(baseWinnerName, members);
+}
+
+function inferHistoryTeamMembers(game, teamKey) {
+  if (!game || game.team_mode !== "teams") return [];
+  const ordered = [...(game.participants || [])].sort((a, b) => (a.position || 0) - (b.position || 0));
+  return ordered.filter((_, index) => (teamKey === "team_b" ? index % 2 === 1 : index % 2 === 0));
+}
+
 function oppositeTeam(teamKey) {
   return teamKey === "team_b" ? "team_a" : "team_b";
 }
@@ -727,8 +745,8 @@ function getCricketStartContext() {
       };
     }
 
-    const teamALabel = teamDisplayName("team_a");
-    const teamBLabel = teamDisplayName("team_b");
+    const teamALabel = teamInitialsLabel(teamDisplayName("team_a"), teamAPlayers);
+    const teamBLabel = teamInitialsLabel(teamDisplayName("team_b"), teamBPlayers);
     return {
       canStart: true,
       teamALabel,
@@ -1447,16 +1465,17 @@ function renderNoughtsAndCrossesDashboard(game) {
         const mark = cell?.mark || "";
         const isClaimed = Boolean(mark);
         const isWinning = winningLine.has(index);
+        const targetLabel = cell?.label || `Square ${index + 1}`;
         return `
           <button
             type="button"
             class="noughts-cell${mark ? ` is-marked is-${mark.toLowerCase()}` : ""}${isWinning ? " is-winning" : ""}"
             data-board-index="${index}"
             ${game.status === "active" && !isClaimed ? "" : "disabled"}
-            aria-label="${cell?.label || `Board square ${index + 1}`}${mark ? ` claimed by ${mark}` : ""}"
+            aria-label="${targetLabel}${mark ? ` claimed by ${mark}` : ""}"
           >
-            <span class="noughts-cell-label">${cell?.label || `Square ${index + 1}`}</span>
-            <span class="noughts-cell-mark">${mark || "?"}</span>
+            <span class="noughts-cell-label">${targetLabel}</span>
+            <span class="noughts-cell-mark${isClaimed ? "" : " is-target"}">${mark || targetLabel}</span>
           </button>
         `;
       }).join("")}
@@ -1575,7 +1594,7 @@ function renderGame() {
   const activePlayer = game.players.find((p) => p.id === game.active_player_id);
   if (game.status === "finished") {
     closeNoughtsMarkOverlay();
-    const winnerName = game.winner_team_name || game.players.find((p) => p.id === game.winner_player_id)?.name || "Tie";
+    const winnerName = winnerDisplayName(game, "Tie");
     activeGameMetaEl.innerHTML = `<strong>Winner: ${winnerName}</strong>`;
   } else if (isCricket) {
     activeGameMetaEl.innerHTML = `<strong class="current-player">${activePlayer?.name || "Unknown"} to Throw</strong>`;
@@ -1658,7 +1677,12 @@ async function loadHistory() {
       : game.game_type === "noughts_and_crosses"
         ? "Noughts and Crosses"
         : "55 by 5";
-    const winner = game.winner_team_name || game.winner_name || "Unknown";
+    const winner = game.team_mode === "teams"
+      ? teamInitialsLabel(
+        game.winner_team_name || game.winner_name || "Unknown",
+        inferHistoryTeamMembers(game, game.winner_team || "team_a")
+      )
+      : (game.winner_team_name || game.winner_name || "Unknown");
     li.textContent = `[${modeLabel}] Game #${game.id}: Winner ${winner}, ${game.turn_count} turns. Order: ${names}`;
     historyListEl.appendChild(li);
   }

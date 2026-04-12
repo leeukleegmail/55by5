@@ -1040,7 +1040,8 @@ def test_noughts_team_winning_line_shows_winner_overlay(live_server, browser):
     overlay = _wait(browser).until(ec.visibility_of_element_located((By.ID, "winner-overlay")))
     assert overlay.is_displayed()
     winner_text = overlay.text
-    assert "Team A" in winner_text or "X" in winner_text
+    assert "Team A" in winner_text
+    assert "(" in winner_text and ")" in winner_text
 
 
 def test_noughts_team_quit_returns_to_setup(live_server, browser):

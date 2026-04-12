@@ -628,7 +628,8 @@ button:hover {
   margin: 0;
   background: #dbe8ff;
   color: #153f8b;
-  font-size: 1rem;
+  font-size: 1.35rem;
+  line-height: 1;
   font-weight: 700;
 }
 
@@ -993,6 +994,11 @@ td {
   cursor: default;
 }
 
+.noughts-cell:focus,
+.noughts-cell:focus-visible {
+  outline: none;
+}
+
 .noughts-cell-label {
   font-size: 0.82rem;
   line-height: 1.25;
@@ -1013,6 +1019,20 @@ td {
   display: grid;
   place-items: center;
   transform: translateY(-0.12rem);
+}
+
+.noughts-cell-mark.is-target {
+  font-size: clamp(0.86rem, 2.35vw, 1.18rem);
+  font-weight: 700;
+  line-height: 1.22;
+  color: #f5efe2;
+  text-align: center;
+  padding: 0.95rem 0.7rem 0.25rem;
+  transform: none;
+}
+
+.noughts-cell:not(.is-marked) .noughts-cell-label {
+  display: none;
 }
 
 .noughts-cell.is-marked .noughts-cell-mark {
@@ -1351,6 +1371,7 @@ td {
   display: grid;
   gap: 0.2rem;
   place-items: center;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .noughts-mark-choice strong {
@@ -1358,8 +1379,16 @@ td {
 }
 
 .noughts-mark-choice.is-default {
-  border-color: rgba(255, 217, 61, 0.7);
-  box-shadow: 0 0 0 1px rgba(255, 217, 61, 0.2);
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow: none;
+}
+
+.noughts-mark-choice:focus,
+.noughts-mark-choice:focus-visible,
+#noughts-mark-cancel:focus,
+#noughts-mark-cancel:focus-visible {
+  outline: none;
+  box-shadow: none;
 }
 
 .modal-actions {
